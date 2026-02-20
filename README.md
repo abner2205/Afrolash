@@ -1,0 +1,1 @@
+Para ejecutar este proyecto localmente, duplica el archivo .env.example, renómbralo a .env y sustituye los valores ficticios con las credenciales de tu propia base de datos MySQL.
