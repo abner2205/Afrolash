@@ -40,8 +40,38 @@ function App() {
     };
   }, []);
 
+// Lógica para agrupar productos y validar el límite de stock
   const agregarAlCarrito = (producto) => {
-    setCarrito([...carrito, producto]);
+    // Busca si el producto ya fue agregado previamente
+    const productoExistente = carrito.find(item => item.id_producto === producto.id_producto);
+    
+    if (productoExistente) {
+        // Validación crítica: Comprueba si la cantidad actual en el carrito ya alcanzó el stock disponible
+        if (productoExistente.cantidad >= producto.stock) {
+            alert(`No puedes agregar más unidades. El stock máximo disponible para "${producto.nombre}" es de ${producto.stock}.`);
+            return; // Detiene la ejecución de la función inmediatamente
+        }
+
+        // Si hay stock disponible, incrementa la cantidad
+        setCarrito(carrito.map(item => 
+            item.id_producto === producto.id_producto 
+            ? { ...item, cantidad: item.cantidad + 1 } 
+            : item
+        ));
+    } else {
+        // Validación de seguridad adicional al agregar por primera vez
+        if (producto.stock > 0) {
+            setCarrito([...carrito, { ...producto, cantidad: 1 }]);
+        } else {
+            alert('Este producto se encuentra agotado.');
+        }
+    }
+  };
+
+  // Ahora elimina buscando por el ID del producto
+  const eliminarDelCarrito = (id_producto) => {
+    const nuevoCarrito = carrito.filter(item => item.id_producto !== id_producto);
+    setCarrito(nuevoCarrito);
   };
 
   const cerrarSesion = () => {
@@ -126,7 +156,7 @@ function App() {
         {vistaActual === 'tienda' && (
             <>
                 <Catalogo agregarAlCarrito={agregarAlCarrito} />
-                <Carrito carrito={carrito} />
+                <Carrito carrito={carrito} eliminarDelCarrito={eliminarDelCarrito} />
             </>
         )}
       </main>
