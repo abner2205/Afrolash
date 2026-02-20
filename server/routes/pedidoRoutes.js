@@ -1,12 +1,11 @@
-// Importa el framework Express y el enrutador
 const express = require('express');
 const router = express.Router();
-
-// Importa el controlador de pedidos
 const pedidoController = require('../controllers/pedidoController');
 
-// Define la ruta POST para procesar el pago
-router.post('/procesar', pedidoController.procesarPedido);
+// Importa el middleware de seguridad
+const authMiddleware = require('../middleware/authMiddleware');
 
-// Exporta el módulo de rutas
+// Define la ruta POST e inserta el middleware antes del controlador
+router.post('/procesar', authMiddleware, pedidoController.procesarPedido);
+
 module.exports = router;
