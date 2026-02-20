@@ -3,6 +3,7 @@ import Catalogo from './components/Catalogo';
 import Carrito from './components/Carrito';
 import Registro from './components/Registro';
 import Login from './components/Login';
+import PanelAdmin from './components/PanelAdmin';
 
 function App() {
   // Define estados para el carrito, la vista actual y los datos del usuario
@@ -44,11 +45,19 @@ function App() {
         
         <div>
             {usuarioActual ? (
-                // Opciones si el usuario esta logueado
+                // Opciones si el usuario está logueado
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <span>Hola, {usuarioActual.nombre}</span>
+                    
+                    {/* Botón exclusivo para administradores */}
+                    {usuarioActual.rol === 'admin' && (
+                        <button onClick={() => setVistaActual('admin')} style={{ padding: '8px 15px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                            Panel Admin
+                        </button>
+                    )}
+
                     <button onClick={cerrarSesion} style={{ padding: '8px 15px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                        Cerrar Sesion
+                        Cerrar Sesión
                     </button>
                     <span style={{ fontWeight: 'bold' }}>Items en carrito: {carrito.length}</span>
                 </div>
@@ -56,7 +65,7 @@ function App() {
                 // Opciones si el usuario es un invitado
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <button onClick={() => setVistaActual('login')} style={{ padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                        Iniciar Sesion
+                        Iniciar Sesión
                     </button>
                     <button onClick={() => setVistaActual('registro')} style={{ padding: '8px 15px', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                         Crear Cuenta
@@ -70,9 +79,10 @@ function App() {
       <main style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
         {vistaActual === 'registro' && <Registro />}
         {vistaActual === 'login' && <Login />}
+        {vistaActual === 'admin' && <PanelAdmin />}
         {vistaActual === 'tienda' && (
             <>
-                <Catalogo agregarAlCarrito={agregarAlCarrito} />
+                <Catalogo agregarAlCarrito={agregarAlCarrito} usuarioActual={usuarioActual} />
                 <Carrito carrito={carrito} />
             </>
         )}
