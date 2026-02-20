@@ -1,28 +1,25 @@
-// Importa las dependencias necesarias de React y Axios
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const Catalogo = () => {
+// Recibe la función agregarAlCarrito como propiedad
+const Catalogo = ({ agregarAlCarrito }) => {
     // Define el estado local para almacenar el arreglo de productos
     const [productos, setProductos] = useState([]);
 
-    // Ejecuta la petición al servidor una vez que el componente se carga
+    // Ejecuta la petición al servidor
     useEffect(() => {
         const obtenerDatos = async () => {
             try {
-                // Solicita los datos a la ruta del backend
                 const respuesta = await axios.get('http://localhost:5000/api/productos');
-                // Actualiza el estado con los datos recibidos desde MySQL
                 setProductos(respuesta.data);
             } catch (error) {
-                console.error('Error al cargar el catálogo de Afrolash:', error);
+                console.error('Error al cargar el catálogo:', error);
             }
         };
-
         obtenerDatos();
     }, []);
 
-    // Renderiza la interfaz visual recorriendo el arreglo de productos
+    // Renderiza la interfaz visual
     return (
         <div>
             <h2>Nuestro Catálogo</h2>
@@ -36,7 +33,11 @@ const Catalogo = () => {
                         <p style={{ fontSize: '12px', color: producto.stock > 0 ? 'green' : 'red' }}>
                             Stock disponible: {producto.stock}
                         </p>
-                        <button style={{ width: '100%', padding: '10px', backgroundColor: '#333', color: 'white', border: 'none', cursor: 'pointer' }}>
+                        {/* Ejecuta la función pasando el objeto producto actual al hacer clic */}
+                        <button
+                            onClick={() => agregarAlCarrito(producto)}
+                            style={{ width: '100%', padding: '10px', backgroundColor: '#333', color: 'white', border: 'none', cursor: 'pointer' }}
+                        >
                             Agregar al Carrito
                         </button>
                     </div>
