@@ -157,13 +157,32 @@ function App() {
       <main style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
         {vistaActual === 'registro' && <Registro />}
         {vistaActual === 'login' && <Login />}
-        {vistaActual === 'admin' && <PanelAdmin />}
-        {vistaActual === 'mis-pedidos' && <MisPedidos />}
+        
         {vistaActual === 'tienda' && (
             <>
                 <Catalogo agregarAlCarrito={agregarAlCarrito} />
                 <Carrito carrito={carrito} eliminarDelCarrito={eliminarDelCarrito} />
             </>
+        )}
+        
+        {vistaActual === 'mis-pedidos' && <MisPedidos />}
+
+        {/* Componente Protegido: Validación estricta de rol para el Panel de Administración */}
+        {vistaActual === 'admin' && (
+            usuarioActual && usuarioActual.rol === 'admin' ? (
+                <PanelAdmin />
+            ) : (
+                <div style={{ textAlign: 'center', padding: '50px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '8px', border: '1px solid #f5c6cb', marginTop: '40px' }}>
+                    <h2 style={{ marginBottom: '10px' }}>Acceso Restringido</h2>
+                    <p style={{ fontSize: '16px' }}>Tu sesión actual no cuenta con los privilegios de seguridad necesarios para acceder a este módulo.</p>
+                    <button 
+                        onClick={() => navegarA('tienda')} 
+                        style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#343a40', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                        Regresar al Catálogo
+                    </button>
+                </div>
+            )
         )}
       </main>
     </div>
