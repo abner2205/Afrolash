@@ -77,12 +77,12 @@ exports.obtenerMisPedidos = async (req, res) => {
     }
 };
 
-// Solo para Admin: Obtiene el historial global de ventas de la tienda
+// Solo para Admin: Obtiene el historial global de ventas
 exports.obtenerTodosLosPedidos = async (req, res) => {
     try {
         // 1. Consulta principal: Une la tabla Pedidos con Usuarios para obtener los datos del cliente
         const [pedidos] = await db.query(`
-            SELECT p.id_pedido, p.total, p.fecha_pedido, u.nombre_completo AS cliente_nombre, u.correo AS cliente_email
+            SELECT p.id_pedido, p.total, p.fecha_pedido, p.estado, u.nombre_completo AS cliente_nombre, u.correo AS cliente_email
             FROM Pedidos p
             JOIN Usuarios u ON p.id_usuario = u.id_usuario
             ORDER BY p.id_pedido DESC
@@ -107,5 +107,19 @@ exports.obtenerTodosLosPedidos = async (req, res) => {
     } catch (error) {
         console.error('Error al obtener ventas globales:', error.message);
         res.status(500).json({ mensaje: 'Error interno al consultar el registro de ventas' });
+    }
+};
+
+exports.actualizarEstadoPedido = async (req, res) => {
+    const { id } = req.params;
+    // Ahora extraemos 'estado' del cuerpo de la petición
+    const { estado } = req.body;
+
+    try {
+        await db.query('UPDATE Pedidos SET estado = ? WHERE id_pedido = ?', [estado, id]);
+        res.status(200).json({ mensaje: 'Estado logístico actualizado exitosamente' });
+    } catch (error) {
+        console.error('Error al actualizar el estado del pedido:', error.message);
+        res.status(500).json({ mensaje: 'Error interno al modificar el estado' });
     }
 };

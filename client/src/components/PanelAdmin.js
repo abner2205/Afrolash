@@ -47,6 +47,20 @@ const PanelAdmin = () => {
         }
     };
 
+    // Cambiar estado de pedidos existente
+    const cambiarEstadoPedido = async (id_pedido, nuevoEstado) => {
+        try {
+            await axios.patch(`http://localhost:5000/api/pedidos/admin/${id_pedido}/estado`, 
+                { estado: nuevoEstado }, // Se envía con el nombre correcto de la columna
+                configHeaders
+            );
+            cargarVentas();
+        } catch (error) {
+            console.error('Error al cambiar el estado del pedido:', error);
+            setMensaje('No se pudo actualizar el estado del pedido.');
+        }
+    };
+
     // --- FUNCIONES DE INVENTARIO (Se mantienen iguales) ---
     const handleChange = (e) => { setProductoData({ ...productoData, [e.target.name]: e.target.value }); setMensaje(''); };
     const handleImageChange = (e) => { setImagen(e.target.files[0]); };
@@ -193,7 +207,7 @@ const PanelAdmin = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             {ventas.map((venta) => (
                                 <div key={venta.id_pedido} style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-                                    <div style={{ backgroundColor: '#e9ecef', padding: '15px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                                    <div style={{ backgroundColor: '#e9ecef', padding: '15px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', alignItems: 'center' }}>
                                         <div>
                                             <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>ORDEN #{venta.id_pedido}</span>
                                             <span style={{ fontSize: '14px' }}>{new Date(venta.fecha_pedido).toLocaleDateString('es-VE')}</span>
@@ -202,6 +216,29 @@ const PanelAdmin = () => {
                                             <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>CLIENTE</span>
                                             <span style={{ fontSize: '14px' }}>{venta.cliente_nombre} ({venta.cliente_email})</span>
                                         </div>
+                                        
+                                        {/* Selector de Estado Logístico (ENUM) */}
+                                        <div>
+                                            <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold', marginBottom: '5px' }}>ESTADO</span>
+                                            <select 
+                                                value={venta.estado || 'pendiente'} 
+                                                onChange={(e) => cambiarEstadoPedido(venta.id_pedido, e.target.value)}
+                                                style={{ 
+                                                    padding: '5px', 
+                                                    borderRadius: '4px', 
+                                                    border: '1px solid #ccc', 
+                                                    fontWeight: 'bold', 
+                                                    backgroundColor: venta.estado === 'entregado' ? '#d4edda' : venta.estado === 'enviado' ? '#cce5ff' : venta.estado === 'pagado' ? '#d1ecf1' : venta.estado === 'cancelado' ? '#f8d7da' : '#fff3cd' 
+                                                }}
+                                            >
+                                                <option value="pendiente">Pendiente</option>
+                                                <option value="pagado">Pagado</option>
+                                                <option value="enviado">Enviado</option>
+                                                <option value="entregado">Entregado</option>
+                                                <option value="cancelado">Cancelado</option>
+                                            </select>
+                                        </div>
+
                                         <div style={{ textAlign: 'right' }}>
                                             <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>INGRESOS</span>
                                             <span style={{ fontWeight: 'bold', color: '#28a745', fontSize: '16px' }}>${parseFloat(venta.total).toFixed(2)}</span>
