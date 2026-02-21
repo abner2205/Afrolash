@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import Catalogo from './components/Catalogo';
 import Carrito from './components/Carrito';
 import Registro from './components/Registro';
@@ -21,6 +22,34 @@ function App() {
     if (usuarioGuardado) {
       setUsuarioActual(JSON.parse(usuarioGuardado));
     }
+  }, []);
+
+  // NUEVO: Interceptor global para manejar la expiración del token
+  useEffect(() => {
+    const interceptorAxios = axios.interceptors.response.use(
+        (respuesta) => respuesta, // Si la petición es exitosa, la deja pasar
+        (error) => {
+            // Si el backend responde que el token expiró o es inválido
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                alert('Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.');
+                
+                // Limpia la memoria del navegador
+                localStorage.removeItem('token');
+                localStorage.removeItem('usuario');
+                
+                // Restablece los estados de la aplicación
+                setUsuarioActual(null);
+                setMenuAbierto(false);
+                setVistaActual('login'); // Redirige a la pantalla de login
+            }
+            return Promise.reject(error);
+        }
+    );
+
+    // Limpieza del interceptor cuando el componente se desmonta
+    return () => {
+        axios.interceptors.response.eject(interceptorAxios);
+    };
   }, []);
 
   // Hook para detectar clics fuera del menú
