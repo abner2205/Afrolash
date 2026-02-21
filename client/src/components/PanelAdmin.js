@@ -216,7 +216,7 @@ const PanelAdmin = () => {
                                             <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>CLIENTE</span>
                                             <span style={{ fontSize: '14px' }}>{venta.cliente_nombre} ({venta.cliente_email})</span>
                                         </div>
-                                        
+
                                         {/* Selector de Estado Logístico (ENUM) */}
                                         <div>
                                             <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold', marginBottom: '5px' }}>ESTADO</span>
@@ -253,6 +253,17 @@ const PanelAdmin = () => {
                                                 </li>
                                             ))}
                                         </ul>
+                                    </div>
+                                    {/* NUEVO: Bloque de Datos Logísticos para el Administrador */}
+                                    <div style={{ padding: '15px', borderBottom: '1px solid #eee', backgroundColor: '#fdfdfd', display: 'flex', gap: '40px' }}>
+                                        <div>
+                                            <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold', marginBottom: '5px' }}>DIRECCIÓN DE ENTREGA</span>
+                                            <span style={{ display: 'block', fontSize: '14px', color: '#333' }}>{venta.direccion_envio || 'Dato no registrado en esta orden'}</span>
+                                        </div>
+                                        <div>
+                                            <span style={{ display: 'block', fontSize: '12px', color: '#666', fontWeight: 'bold', marginBottom: '5px' }}>TELÉFONO</span>
+                                            <span style={{ display: 'block', fontSize: '14px', color: '#333' }}>{venta.telefono_contacto || 'No registrado'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

@@ -85,7 +85,7 @@ exports.obtenerTodosLosPedidos = async (req, res) => {
     try {
         // 1. Consulta principal: Une la tabla Pedidos con Usuarios para obtener los datos del cliente
         const [pedidos] = await db.query(`
-            SELECT p.id_pedido, p.total, p.fecha_pedido, p.estado, u.nombre_completo AS cliente_nombre, u.correo AS cliente_email
+            SELECT p.id_pedido, p.total, p.fecha_pedido, p.estado, p.direccion_envio, p.telefono_contacto, u.nombre_completo AS cliente_nombre, u.correo AS cliente_email
             FROM Pedidos p
             JOIN Usuarios u ON p.id_usuario = u.id_usuario
             ORDER BY p.id_pedido DESC
