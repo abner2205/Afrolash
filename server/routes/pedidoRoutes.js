@@ -5,7 +5,10 @@ const pedidoController = require('../controllers/pedidoController');
 // Importa el middleware de seguridad
 const authMiddleware = require('../middleware/authMiddleware');
 
-// Define la ruta POST e inserta el middleware antes del controlador
+// Procesar una nueva compra
 router.post('/procesar', authMiddleware, pedidoController.procesarPedido);
+
+// Obtener el historial del usuario logueado
+router.get('/mis-pedidos', authMiddleware, pedidoController.obtenerMisPedidos);
 
 module.exports = router;

@@ -4,6 +4,7 @@ import Carrito from './components/Carrito';
 import Registro from './components/Registro';
 import Login from './components/Login';
 import PanelAdmin from './components/PanelAdmin';
+import MisPedidos from './components/MisPedidos';
 
 function App() {
   const [carrito, setCarrito] = useState([]);
@@ -120,6 +121,10 @@ function App() {
                                     Ver Catálogo
                                 </button>
 
+                                <button onClick={() => navegarA('mis-pedidos')} style={{ width: '100%', padding: '12px', textAlign: 'left', backgroundColor: 'transparent', border: 'none', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
+                                    Mis Pedidos
+                                </button>
+
                                 {usuarioActual.rol === 'admin' && (
                                     <button onClick={() => navegarA('admin')} style={{ width: '100%', padding: '12px', textAlign: 'left', backgroundColor: 'transparent', border: 'none', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
                                         Panel Admin
@@ -153,6 +158,7 @@ function App() {
         {vistaActual === 'registro' && <Registro />}
         {vistaActual === 'login' && <Login />}
         {vistaActual === 'admin' && <PanelAdmin />}
+        {vistaActual === 'mis-pedidos' && <MisPedidos />}
         {vistaActual === 'tienda' && (
             <>
                 <Catalogo agregarAlCarrito={agregarAlCarrito} />

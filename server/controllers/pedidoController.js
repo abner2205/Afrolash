@@ -39,3 +39,40 @@ exports.procesarPedido = async (req, res) => {
         res.status(500).json({ mensaje: 'Error interno al procesar la transacción en la base de datos' });
     }
 };
+
+// Obtener el historial de compras de un cliente específico
+exports.obtenerMisPedidos = async (req, res) => {
+    // El ID del usuario viene del token decodificado por el authMiddleware
+    const id_usuario = req.usuario.id;
+
+    try {
+        // 1. Busca todos los pedidos generales de este usuario, ordenados del más reciente al más antiguo
+        const [pedidos] = await db.query(
+            'SELECT * FROM Pedidos WHERE id_usuario = ? ORDER BY id_pedido DESC', 
+            [id_usuario]
+        );
+
+        // 2. Itera sobre cada pedido para buscar sus detalles (los productos comprados)
+        for (let i = 0; i < pedidos.length; i++) {
+            const id_pedido = pedidos[i].id_pedido;
+            
+            // Realiza un JOIN entre Detalles_pedido y Productos para obtener el nombre y la foto de lo que compró
+            const [detalles] = await db.query(`
+                SELECT dp.cantidad, dp.precio_unitario, pr.nombre, pr.imagen_url 
+                FROM Detalles_pedido dp
+                JOIN Productos pr ON dp.id_producto = pr.id_producto
+                WHERE dp.id_pedido = ?
+            `, [id_pedido]);
+
+            // Adjunta el arreglo de detalles como una nueva propiedad dentro del objeto del pedido
+            pedidos[i].detalles = detalles;
+        }
+
+        // Envía la estructura completa (pedidos con sus detalles anidados) al frontend
+        res.status(200).json(pedidos);
+
+    } catch (error) {
+        console.error('Error al obtener el historial de pedidos:', error.message);
+        res.status(500).json({ mensaje: 'Error interno al consultar el historial de compras' });
+    }
+};
