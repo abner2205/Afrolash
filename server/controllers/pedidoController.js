@@ -1,48 +1,41 @@
-// Importa el pool de conexión a la base de datos
 const db = require('../config/db');
-
-// Define la función asíncrona 
 exports.procesarPedido = async (req, res) => {
     // Extrae los datos enviados desde el frontend
     const { id_usuario, carrito, total } = req.body;
-    const conexion = await db.getConnection();
 
     try {
-        // Inicia la transacción 
-        await conexion.beginTransaction();
-
-        // Inserta el registro principal en la tabla Pedidos
-        const [resultadoPedido] = await conexion.query(
-            'INSERT INTO Pedidos (id_usuario, total, estado) VALUES (?, ?, ?)',
-            [id_usuario, total, 'pagado']
+        // 1. Registra el pedido principal en la tabla Pedidos
+        const [resultadoPedido] = await db.query(
+            'INSERT INTO Pedidos (id_usuario, total) VALUES (?, ?)',
+            [id_usuario, total]
         );
+        
+        // Captura el ID generado para este nuevo pedido
         const id_pedido = resultadoPedido.insertId;
 
-        // Itera sobre el arreglo del carrito para insertar los detalles
-        for (const item of carrito) {
-            await conexion.query(
-                'INSERT INTO Detalles_Pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
-                [id_pedido, item.id_producto, 1, item.precio]
-            );
+        // 2. Itera sobre el arreglo para procesar cada producto de forma individual
+        for (let item of carrito) {
             
-            // Actualiza el inventario descontando la unidad comprada
-            await conexion.query(
-                'UPDATE Productos SET stock = stock - 1 WHERE id_producto = ?',
-                [item.id_producto]
+            // a. Registra el historial en Detalles_Pedido para mantener la integridad referencial
+            await db.query(
+                'INSERT INTO Detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
+                [id_pedido, item.id_producto, item.cantidad, item.precio]
+            );
+
+            // b. Actualiza el inventario y la visibilidad en una sola transacción eficiente
+            // Se resta la cantidad exacta solicitada. Si el resultado es 0, el estado pasa a 0 (oculto).
+            await db.query(
+                `UPDATE Productos 
+                 SET stock = stock - ?, 
+                     estado = IF((stock - ?) <= 0, 0, estado) 
+                 WHERE id_producto = ?`,
+                [item.cantidad, item.cantidad, item.id_producto]
             );
         }
 
-        // Confirma la transacción guardando los cambios permanentemente
-        await conexion.commit();
-        res.status(200).json({ mensaje: 'Pedido procesado con éxito', id_pedido });
-
+        res.status(201).json({ mensaje: 'Transacción procesada correctamente', id_pedido: id_pedido });
     } catch (error) {
-        // Revierte todos los cambios si ocurre algún error durante el proceso
-        await conexion.rollback();
         console.error('Error al procesar el pedido:', error.message);
-        res.status(500).json({ mensaje: 'Error interno al procesar la transacción' });
-    } finally {
-        // Libera la conexión para no saturar el servidor
-        conexion.release();
+        res.status(500).json({ mensaje: 'Error interno al procesar la transacción en la base de datos' });
     }
 };
