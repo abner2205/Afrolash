@@ -76,3 +76,36 @@ exports.obtenerMisPedidos = async (req, res) => {
         res.status(500).json({ mensaje: 'Error interno al consultar el historial de compras' });
     }
 };
+
+// Solo para Admin: Obtiene el historial global de ventas de la tienda
+exports.obtenerTodosLosPedidos = async (req, res) => {
+    try {
+        // 1. Consulta principal: Une la tabla Pedidos con Usuarios para obtener los datos del cliente
+        const [pedidos] = await db.query(`
+            SELECT p.id_pedido, p.total, p.fecha_pedido, u.nombre_completo AS cliente_nombre, u.correo AS cliente_email
+            FROM Pedidos p
+            JOIN Usuarios u ON p.id_usuario = u.id_usuario
+            ORDER BY p.id_pedido DESC
+        `);
+
+        // 2. Bucle para adjuntar los productos específicos a cada factura
+        for (let i = 0; i < pedidos.length; i++) {
+            const id_pedido = pedidos[i].id_pedido;
+            
+            const [detalles] = await db.query(`
+                SELECT dp.cantidad, dp.precio_unitario, pr.nombre 
+                FROM Detalles_pedido dp
+                JOIN Productos pr ON dp.id_producto = pr.id_producto
+                WHERE dp.id_pedido = ?
+            `, [id_pedido]);
+
+            pedidos[i].detalles = detalles;
+        }
+
+        res.status(200).json(pedidos);
+
+    } catch (error) {
+        console.error('Error al obtener ventas globales:', error.message);
+        res.status(500).json({ mensaje: 'Error interno al consultar el registro de ventas' });
+    }
+};
