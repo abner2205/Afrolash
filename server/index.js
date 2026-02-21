@@ -1,7 +1,8 @@
+require('dotenv').config(); // Carga las variables de .env
 // Importación de módulos principales
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config(); // Carga las variables de .env
+const pagoRoutes = require('./routes/pagoRoutes');
 
 // Importa la conexión a la base de datos
 const db = require('./config/db');
@@ -21,6 +22,7 @@ const productoRoutes = require('./routes/productoRoutes');
 app.use('/api/productos', productoRoutes);
 const pedidoRoutes = require('./routes/pedidoRoutes'); 
 app.use('/api/pedidos', pedidoRoutes);
+app.use('/api/pagos', pagoRoutes);
 
 // Ruta para verificar que el servidor responde
 app.get('/', (req, res) => {
