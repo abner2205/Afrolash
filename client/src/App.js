@@ -130,9 +130,13 @@ function App() {
         <div>
             {usuarioActual ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <span style={{ fontWeight: 'bold', backgroundColor: '#e9ecef', padding: '5px 10px', borderRadius: '15px' }}>
-                        Carrito: {carrito.length}
-                    </span>
+                    {/* El contador del carrito ahora es un botón interactivo */}
+                    <button 
+                        onClick={() => navegarA('carrito')}
+                        style={{ fontWeight: 'bold', backgroundColor: '#e9ecef', color: '#333', padding: '8px 15px', borderRadius: '15px', border: '1px solid #ccc', cursor: 'pointer' }}
+                    >
+                        Ver Carrito ({carrito.length})
+                    </button>
                     
                     {/* Se asigna la referencia (ref) a este contenedor padre */}
                     <div style={{ position: 'relative' }} ref={menuRef}>
@@ -169,9 +173,12 @@ function App() {
                 </div>
             ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontWeight: 'bold', backgroundColor: '#e9ecef', padding: '5px 10px', borderRadius: '15px', marginRight: '10px' }}>
-                        Carrito: {carrito.length}
-                    </span>
+                    <button 
+                        onClick={() => navegarA('carrito')}
+                        style={{ fontWeight: 'bold', backgroundColor: '#e9ecef', color: '#333', padding: '8px 15px', borderRadius: '15px', border: '1px solid #ccc', cursor: 'pointer', marginRight: '10px' }}
+                    >
+                        Ver Carrito ({carrito.length})
+                    </button>
                     <button onClick={() => navegarA('login')} style={{ padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                         Iniciar Sesión
                     </button>
@@ -187,12 +194,11 @@ function App() {
         {vistaActual === 'registro' && <Registro />}
         {vistaActual === 'login' && <Login />}
         
-        {vistaActual === 'tienda' && (
-            <>
-                <Catalogo agregarAlCarrito={agregarAlCarrito} />
-                <Carrito carrito={carrito} eliminarDelCarrito={eliminarDelCarrito} />
-            </>
-        )}
+        {/* La tienda ahora solo muestra el catálogo */}
+        {vistaActual === 'tienda' && <Catalogo agregarAlCarrito={agregarAlCarrito} />}
+        
+        {/* El carrito ahora recibe la función para regresar al catálogo */}
+        {vistaActual === 'carrito' && <Carrito carrito={carrito} eliminarDelCarrito={eliminarDelCarrito} volver={() => navegarA('tienda')} />}
         
         {vistaActual === 'mis-pedidos' && <MisPedidos />}
 

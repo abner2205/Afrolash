@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const enviarFactura = require('../utils/enviarFactura');
 
 exports.procesarPedido = async (req, res) => {
     // Ahora el backend espera recibir la dirección y el teléfono desde el formulario
@@ -35,8 +36,26 @@ exports.procesarPedido = async (req, res) => {
                 [item.id_producto]
             );
         }
+        // NUEVO: Consultar el correo del cliente para enviar la factura
+        const [usuarioData] = await db.query('SELECT correo FROM Usuarios WHERE id_usuario = ?', [id_usuario]);
+        const correoCliente = usuarioData[0].correo;
 
-        res.status(201).json({ mensaje: 'Transacción procesada correctamente', id_pedido: id_pedido });
+        // Ejecutar la generación del PDF y envío de correo en segundo plano
+        const datosParaFactura = { 
+               id_pedido: id_pedido, 
+               direccion: direccion_envio, 
+               telefono: telefono_contacto 
+           };
+
+           // Ejecutar la generación del PDF, el envío del correo y esperar el resultado
+           const facturaBase64 = await enviarFactura(correoCliente, datosParaFactura, carrito, total);
+
+           // Respuesta al frontend
+           res.status(201).json({ 
+               mensaje: 'Transacción procesada correctamente', 
+               id_pedido: id_pedido,
+               factura: facturaBase64 // Esta es la propiedad vital que React intenta leer
+           });
     } catch (error) {
         console.error('Error al procesar el pedido:', error.message);
         res.status(500).json({ mensaje: 'Error interno al procesar la transacción' });

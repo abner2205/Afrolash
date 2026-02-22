@@ -9,10 +9,11 @@ import FormularioPago from './FormularioPago';
 // Asegúrate de que tu variable de entorno en .env esté bien escrita
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
-const Carrito = ({ carrito, eliminarDelCarrito }) => {
+const Carrito = ({ carrito, eliminarDelCarrito, volver }) => {
     // Ahora tenemos 3 pasos: 1 (Carrito), 2 (Envío), 3 (Pago)
     const [pasoCheckout, setPasoCheckout] = useState(1);
     const [clientSecret, setClientSecret] = useState('');
+    const [facturaUrl, setFacturaUrl] = useState(null); // NUEVO ESTADO
     
     const [datosEnvio, setDatosEnvio] = useState({
         direccion: '',
@@ -80,17 +81,43 @@ const Carrito = ({ carrito, eliminarDelCarrito }) => {
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
             
-            alert('Pago procesado exitosamente. Número de orden: ' + respuesta.data.id_pedido);
-            window.location.reload(); 
+            // Verificamos de forma segura si el servidor adjuntó la factura
+            if (respuesta.data.factura) {
+                const base64Pdf = respuesta.data.factura;
+                const byteCharacters = atob(base64Pdf);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                
+                const urlLocal = URL.createObjectURL(blob);
+                setFacturaUrl(urlLocal);
+            } else {
+                console.warn("La orden se procesó, pero el servidor no devolvió el PDF para visualizarlo en pantalla.");
+            }
+
+            // Avanzamos a la pantalla final de éxito sin importar si hay PDF o no
+            setPasoCheckout(4);
+
         } catch (error) {
-            console.error('Error guardando el pedido en MySQL:', error);
-            alert('El pago se realizó, pero ocurrió un error al registrar la orden.');
+            console.error('Error procesando la respuesta del servidor:', error);
+            alert('El pago se realizó, pero ocurrió un error al cargar la pantalla final.');
         }
     };
 
     return (
         <div style={{ marginTop: '40px', padding: '20px', borderTop: '2px solid #eee' }}>
             
+            {/* Nuevo botón de navegación superior */}
+            <button 
+                onClick={volver} 
+                style={{ marginBottom: '20px', padding: '8px 15px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+                ← Volver a la Tienda
+            </button>
+
             {carrito.length === 0 ? (
                 <div>
                     <h2>Resumen de Compra</h2>
@@ -160,6 +187,36 @@ const Carrito = ({ carrito, eliminarDelCarrito }) => {
 
                             <button onClick={() => setPasoCheckout(2)} style={{ width: '100%', marginTop: '15px', padding: '10px', backgroundColor: 'transparent', color: '#6c757d', border: '1px solid #ccc', cursor: 'pointer', borderRadius: '4px' }}>
                                 Volver a Datos de Envío
+                            </button>
+                        </div>
+                    )}
+
+                    {/* PASO 4: PANTALLA DE ÉXITO Y FACTURA */}
+                    {pasoCheckout === 4 && (
+                        <div style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto', backgroundColor: '#f8f9fa', padding: '30px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                            <h2 style={{ color: '#28a745', fontSize: '28px', marginTop: 0 }}>¡Pago Procesado Exitosamente!</h2>
+                            <p style={{ fontSize: '16px', color: '#555', marginBottom: '20px' }}>
+                                Tu orden ha sido confirmada. Hemos enviado una copia de esta factura electrónica a tu correo registrado.
+                            </p>
+                            
+                            {/* Visor del documento PDF */}
+                            {facturaUrl && (
+                                <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', marginBottom: '20px' }}>
+                                    <iframe 
+                                        src={facturaUrl} 
+                                        title="Factura PDF" 
+                                        width="100%" 
+                                        height="450px" 
+                                        style={{ border: 'none', display: 'block' }}
+                                    />
+                                </div>
+                            )}
+
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                style={{ padding: '12px 25px', backgroundColor: '#007bff', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}
+                            >
+                                Finalizar y Volver al Catálogo
                             </button>
                         </div>
                     )}

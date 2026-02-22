@@ -32,7 +32,7 @@ const MisPedidos = () => {
         obtenerHistorial();
     }, []);
 
-    // Función auxiliar para formatear la fecha de MySQL a un formato legible
+    // Formatear la fecha de MySQL a un formato legible
     const formatearFecha = (cadenaFecha) => {
         if (!cadenaFecha) return 'Fecha desconocida';
         const opciones = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
@@ -68,7 +68,7 @@ const MisPedidos = () => {
                                     <span style={{ display: 'block', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>N° de Orden</span>
                                     <span style={{ fontWeight: 'bold' }}>#{pedido.id_pedido}</span>
                                 </div>
-                                {/* Indicador de estado basado en ENUM */}
+                                {/* Indicador de estado */}
                                 <div>
                                     <span style={{ display: 'block', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>Estado</span>
                                     <span style={{ 
@@ -81,7 +81,7 @@ const MisPedidos = () => {
                                 </div>
                             </div>
                             
-                            {/* NUEVO: Bloque de Datos de Envío para el Cliente */}
+                            {/* Datos de Envío para el Cliente */}
                             <div style={{ padding: '15px', borderBottom: '1px solid #ddd', backgroundColor: '#fff' }}>
                                 <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#333' }}>Información de Entrega</h4>
                                 <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#555' }}><strong>Dirección:</strong> {pedido.direccion_envio || 'No especificada'}</p>
