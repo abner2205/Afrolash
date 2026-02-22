@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const PanelAdmin = () => {
-    // Estado para la navegación interna del panel
-    const [pestañaActiva, setPestañaActiva] = useState('inventario'); // 'inventario' o 'ventas'
+    // Estado para la navegación interna: 'inventario', 'ventas' o 'metricas'
+    const [pestañaActiva, setPestañaActiva] = useState('inventario');
 
     // Estados para Inventario
     const [inventario, setInventario] = useState([]);
@@ -19,11 +20,12 @@ const PanelAdmin = () => {
     const token = localStorage.getItem('token');
     const configHeaders = { headers: { 'Authorization': `Bearer ${token}` } };
 
-    // Carga inicial de datos según la pestaña activa
+   // Carga inicial de datos según la pestaña activa
     useEffect(() => {
         if (pestañaActiva === 'inventario') {
             cargarInventario();
-        } else if (pestañaActiva === 'ventas') {
+        } else if (pestañaActiva === 'ventas' || pestañaActiva === 'metricas') {
+            // Se cargan las ventas también para las métricas
             cargarVentas();
         }
     }, [pestañaActiva]);
@@ -111,6 +113,56 @@ const PanelAdmin = () => {
         } catch (error) { console.error('Error al cambiar estado:', error); }
     };
 
+// --- LÓGICA DE PROCESAMIENTO DE MÉTRICAS ---
+    const ingresosTotales = ventas.reduce((acumulador, venta) => acumulador + parseFloat(venta.total), 0);
+    const totalPedidos = ventas.length;
+
+    // 1. Algoritmo para agrupar ingresos por mes de forma cronológica
+    const ingresosPorMes = {};
+    ventas.forEach(venta => {
+        const fecha = new Date(venta.fecha_pedido);
+        // Formato YYYY-MM para garantizar un ordenamiento cronológico perfecto
+        const mesFormat = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`; 
+        
+        if (ingresosPorMes[mesFormat]) {
+            ingresosPorMes[mesFormat] += parseFloat(venta.total);
+        } else {
+            ingresosPorMes[mesFormat] = parseFloat(venta.total);
+        }
+    });
+
+    const mesesNombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+    // Convertir el objeto a un arreglo ordenado para el gráfico
+    const datosMensuales = Object.keys(ingresosPorMes)
+        .sort() // Ordena las fechas de menor a mayor
+        .map(llave => {
+            const [año, mes] = llave.split('-');
+            return {
+                mes: `${mesesNombres[parseInt(mes) - 1]} ${año}`, // Ej: "Feb 2026"
+                ingresos: parseFloat(ingresosPorMes[llave].toFixed(2))
+            };
+        });
+
+    // 2. Algoritmo para el Top de Productos (Se mantiene igual)
+    const conteoProductos = {};
+    ventas.forEach(venta => {
+        if (venta.detalles) {
+            venta.detalles.forEach(detalle => {
+                if (conteoProductos[detalle.nombre]) {
+                    conteoProductos[detalle.nombre] += detalle.cantidad;
+                } else {
+                    conteoProductos[detalle.nombre] = detalle.cantidad;
+                }
+            });
+        }
+    });
+
+    const datosTopProductos = Object.keys(conteoProductos)
+        .map(nombre => ({ nombre: nombre, cantidad: conteoProductos[nombre] }))
+        .sort((a, b) => b.cantidad - a.cantidad)
+        .slice(0, 5);
+
     // --- RENDERIZADO VISUAL ---
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
@@ -128,6 +180,13 @@ const PanelAdmin = () => {
                     style={{ padding: '10px 20px', fontSize: '16px', fontWeight: 'bold', border: 'none', backgroundColor: pestañaActiva === 'ventas' ? '#343a40' : '#e9ecef', color: pestañaActiva === 'ventas' ? 'white' : '#333', borderRadius: '4px', cursor: 'pointer' }}
                 >
                     Registro de Ventas
+                </button>
+                {/* NUEVO BOTÓN */}
+                <button 
+                    onClick={() => setPestañaActiva('metricas')}
+                    style={{ padding: '10px 20px', fontSize: '16px', fontWeight: 'bold', border: 'none', backgroundColor: pestañaActiva === 'metricas' ? '#343a40' : '#e9ecef', color: pestañaActiva === 'metricas' ? 'white' : '#333', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                    Métricas y Rendimiento
                 </button>
             </div>
 
@@ -269,6 +328,73 @@ const PanelAdmin = () => {
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+            {/* PESTAÑA: MÉTRICAS Y DASHBOARD */}
+            {pestañaActiva === 'metricas' && (
+                <div>
+                    {/* Tarjetas de Indicadores Clave (KPIs) */}
+                    <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
+                        <div style={{ flex: 1, backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                            <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', textTransform: 'uppercase' }}>Ingresos Brutos</h3>
+                            <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#28a745' }}>${ingresosTotales.toFixed(2)}</span>
+                        </div>
+                        <div style={{ flex: 1, backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                            <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', textTransform: 'uppercase' }}>Total de Pedidos</h3>
+                            <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#007bff' }}>{totalPedidos}</span>
+                        </div>
+                        <div style={{ flex: 1, backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                            <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', textTransform: 'uppercase' }}>Ticket Promedio</h3>
+                            <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#17a2b8' }}>
+                                ${totalPedidos > 0 ? (ingresosTotales / totalPedidos).toFixed(2) : '0.00'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Gráficos de Rendimiento */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                        
+                        {/* NUEVO: Gráfico de Ingresos Mensuales */}
+                        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                            <h3 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center', color: '#333' }}>Evolución de Ingresos Mensuales</h3>
+                            {datosMensuales.length > 0 ? (
+                                <div style={{ height: '350px', width: '100%' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={datosMensuales} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="mes" tick={{fontSize: 12, fill: '#666'}} tickMargin={10} />
+                                            <YAxis tickFormatter={(value) => `$${value}`} tick={{fontSize: 12, fill: '#666'}} width={80} />
+                                            <Tooltip formatter={(value) => [`$${value}`, 'Ingresos Brutos']} cursor={{fill: '#f8f9fa'}} />
+                                            <Bar dataKey="ingresos" fill="#28a745" radius={[4, 4, 0, 0]} barSize={40} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            ) : (
+                                <p style={{ textAlign: 'center', color: '#666' }}>No hay suficientes datos de ventas registrados.</p>
+                            )}
+                        </div>
+
+                        {/* Gráfico de Top Productos */}
+                        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                            <h3 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center', color: '#333' }}>Top 5: Productos Más Vendidos</h3>
+                            {datosTopProductos.length > 0 ? (
+                                <div style={{ height: '300px', width: '100%' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={datosTopProductos} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="nombre" tick={{fontSize: 12, fill: '#666'}} tickMargin={10} />
+                                            <YAxis allowDecimals={false} tick={{fontSize: 12, fill: '#666'}} />
+                                            <Tooltip formatter={(value) => [value, 'Unidades Vendidas']} cursor={{fill: '#f8f9fa'}} />
+                                            <Bar dataKey="cantidad" fill="#007bff" radius={[4, 4, 0, 0]} barSize={40} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            ) : (
+                                <p style={{ textAlign: 'center', color: '#666' }}>No hay suficientes datos de ventas registrados.</p>
+                            )}
+                        </div>
+
+                    </div>
                 </div>
             )}
         </div>
