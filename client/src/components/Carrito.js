@@ -43,7 +43,7 @@ const Carrito = ({ carrito, eliminarDelCarrito, volver }) => {
         
         const token = localStorage.getItem('token'); 
         if (!token) {
-            alert('Por favor, inicia sesión nuevamente.');
+            alert('Por favor, inicia sesión para continuar.');
             return;
         }
 

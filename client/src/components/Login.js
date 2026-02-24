@@ -1,89 +1,127 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const Login = () => {
-    // Define el estado inicial para las credenciales
+const Login = ({ navegarA }) => {
     const [formData, setFormData] = useState({
         correo: '',
         password: ''
     });
+    const [mensaje, setMensaje] = useState('');
+    const [cargando, setCargando] = useState(false);
+    const [mostrarPassword, setMostrarPassword] = useState(false);
 
-    // Define un estado para manejar los mensajes de error
-    const [mensajeError, setMensajeError] = useState('');
-
-    // Actualiza el estado y limpia los errores mientras el usuario escribe
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-        setMensajeError('');
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setMensaje(''); 
     };
 
-    // Ejecuta la peticion de autenticacion al servidor
     const handleSubmit = async (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
+        
+        // Prevención de envío de campos vacíos en el cliente
+        if (!formData.correo || !formData.password) {
+            setMensaje('Por favor, completa todos los campos.');
+            return;
+        }
+
+        setCargando(true);
 
         try {
-            const respuesta = await axios.post('http://localhost:5000/api/auth/login', formData);
+            const respuesta = await axios.post('http://localhost:5000/api/auth/login', {
+                correo: formData.correo,
+                password: formData.password
+            });
             
-            // Extrae el token y los datos del usuario de la respuesta
-            const { token, usuario } = respuesta.data;
-
-            // Guarda la llave de acceso y los datos en el almacenamiento local del navegador
-            localStorage.setItem('token', token);
-            localStorage.setItem('usuario', JSON.stringify(usuario));
-
-            alert('Inicio de sesion exitoso. Bienvenido, ' + usuario.nombre);
+            // Guardamos las credenciales criptográficas
+            localStorage.setItem('token', respuesta.data.token);
+            localStorage.setItem('usuario', JSON.stringify(respuesta.data.usuario));
             
-            // Limpia el formulario tras acceder exitosamente
-            setFormData({ correo: '', password: '' });
-            setMensajeError('');
-            
-            // Recarga la pagina para actualizar el estado global de la aplicacion
+            // Recargamos el estado global de la aplicación para que el interceptor reconozca la sesión
             window.location.reload();
-
+            
         } catch (error) {
-            console.error('Error en el inicio de sesion:', error);
-            // Muestra error proveniente del servidor si existe, o un mensaje generico
-            setMensajeError(error.response?.data?.mensaje || 'Credenciales invalidas o error de conexion.');
+            console.error('Intento de acceso fallido interceptado.');
+            
+            // SEGURIDAD: Mensaje genérico absoluto, sin importar lo que responda el backend
+            setMensaje('Correo electrónico o contraseña incorrectos.');
+            
+            // Limpiamos el campo de la contraseña por seguridad, obligando a teclear de nuevo
+            setFormData({ ...formData, password: '' });
+            setCargando(false);
         }
     };
 
-    // Renderiza la estructura visual del formulario de acceso
     return (
-        <div style={{ maxWidth: '400px', margin: '0 auto 40px auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px' }}>
-            <h2 style={{ textAlign: 'center' }}>Iniciar Sesion</h2>
+        <div style={{ maxWidth: '400px', margin: '60px auto', padding: '30px', border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ textAlign: 'center', marginBottom: '25px', color: '#333' }}>Iniciar Sesión</h2>
             
-            {mensajeError && (
-                <div style={{ padding: '10px', marginBottom: '15px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px', fontSize: '14px' }}>
-                    {mensajeError}
+            {/* Contenedor de Alertas Genéricas */}
+            {mensaje && (
+                <div style={{ padding: '10px', marginBottom: '20px', backgroundColor: '#f8d7da', color: '#721c24', border: '1px solid #f5c6cb', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold' }}>
+                    {mensaje}
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <input
-                    type="email"
-                    name="correo"
-                    placeholder="Correo Electronico"
-                    value={formData.correo}
-                    onChange={handleChange}
-                    required
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-                <input
-                    type="password"
-                    name="password"
-                    placeholder="Contrasena"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-                <button type="submit" style={{ padding: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                    Acceder
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#555' }}>Correo Electrónico:</label>
+                    <input 
+                        type="email" 
+                        name="correo" 
+                        value={formData.correo} 
+                        onChange={handleChange} 
+                        required 
+                        autoComplete="email"
+                        style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} 
+                    />
+                </div>
+
+                <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#555' }}>Contraseña:</label>
+                    <div style={{ position: 'relative' }}>
+                        <input 
+                            // El tipo cambia dinámicamente según el estado
+                            type={mostrarPassword ? "text" : "password"} 
+                            name="password" 
+                            value={formData.password} 
+                            onChange={handleChange} 
+                            required 
+                            // Se añade padding derecho para que el texto no se superponga con el botón
+                            style={{ width: '100%', padding: '10px 50px 10px 10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} 
+                        />
+                        <button 
+                            type="button" 
+                            onClick={() => setMostrarPassword(!mostrarPassword)}
+                            style={{ 
+                                position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', 
+                                background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' 
+                            }}
+                            // Evitamos que al hacer clic en el botón se envíe el formulario
+                            tabIndex="-1" 
+                        >
+                            {mostrarPassword ? 'OCULTAR' : 'VER'}
+                        </button>
+                    </div>
+                </div>
+
+                <button 
+                    type="submit" 
+                    disabled={cargando}
+                    style={{ 
+                        marginTop: '10px', padding: '12px', 
+                        backgroundColor: cargando ? '#6c757d' : '#28a745', 
+                        color: 'white', border: 'none', borderRadius: '4px', 
+                        cursor: cargando ? 'not-allowed' : 'pointer', 
+                        fontWeight: 'bold', fontSize: '16px', transition: 'background-color 0.3s'
+                    }}
+                >
+                    {cargando ? 'Verificando credenciales...' : 'Ingresar'}
                 </button>
             </form>
+            
+            <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: '#666' }}>
+                ¿No tienes una cuenta? <span onClick={() => navegarA('registro')} style={{ color: '#007bff', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Regístrate aquí</span>
+            </p>
         </div>
     );
 };

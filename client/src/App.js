@@ -191,8 +191,8 @@ function App() {
       </header>
       
       <main style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-        {vistaActual === 'registro' && <Registro />}
-        {vistaActual === 'login' && <Login />}
+        {vistaActual === 'registro' && <Registro navegarA={navegarA} />}
+        {vistaActual === 'login' && <Login navegarA={navegarA} />}
         
         {/* La tienda ahora solo muestra el catálogo */}
         {vistaActual === 'tienda' && <Catalogo agregarAlCarrito={agregarAlCarrito} />}
