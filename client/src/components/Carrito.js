@@ -80,6 +80,13 @@ const Carrito = ({ carrito, eliminarDelCarrito, volver }) => {
                 },
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
+
+            const usuarioActualizado = { 
+                ...usuario, 
+                direccion: datosEnvio.direccion, 
+                telefono: datosEnvio.telefono 
+            };
+            localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
             
             // Verificamos de forma segura si el servidor adjuntó la factura
             if (respuesta.data.factura) {

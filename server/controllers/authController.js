@@ -59,7 +59,9 @@ exports.loginUsuario = async (req, res) => {
             usuario: { 
                 nombre: usuario.nombre_completo, 
                 rol: usuario.rol,
-                id: usuario.id_usuario
+                id: usuario.id_usuario,
+                direccion: usuarioEncontrado.direccion || '', // Se añade manejo de nulos
+                telefono: usuarioEncontrado.telefono || ''
             } 
         });
 

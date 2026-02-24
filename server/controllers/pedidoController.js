@@ -11,6 +11,19 @@ exports.procesarPedido = async (req, res) => {
             'INSERT INTO Pedidos (id_usuario, total, direccion_envio, telefono_contacto) VALUES (?, ?, ?, ?)',
             [id_usuario, total, direccion_envio, telefono_contacto]
         );
+
+        // NUEVO: 2. Actualizar el perfil del usuario con los últimos datos de contacto utilizados
+        try {
+            // Aseguramos que las variables no sean nulas antes de actualizar
+            if (direccion_envio && telefono_contacto) {
+                await db.query(
+                    'UPDATE Usuarios SET direccion = ?, telefono = ? WHERE id_usuario = ?',
+                    [direccion_envio, telefono_contacto, id_usuario]
+                );
+            }
+        } catch (errorActualizacion) {
+            console.error('Advertencia: No se pudo actualizar el perfil del usuario:', errorActualizacion.message);
+        }
         
         const id_pedido = resultadoPedido.insertId;
 
