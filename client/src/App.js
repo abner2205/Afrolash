@@ -6,6 +6,7 @@ import Registro from './components/Registro';
 import Login from './components/Login';
 import PanelAdmin from './components/PanelAdmin';
 import MisPedidos from './components/MisPedidos';
+import Perfil from './components/Perfil';
 
 function App() {
   const [carrito, setCarrito] = useState([]);
@@ -144,7 +145,7 @@ function App() {
                             onClick={() => setMenuAbierto(!menuAbierto)} 
                             style={{ padding: '8px 15px', backgroundColor: '#343a40', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                         >
-                            {usuarioActual.nombre} {menuAbierto ? '▲' : '▼'}
+                            {usuarioActual.nombre_completo} {menuAbierto ? '▲' : '▼'}
                         </button>
 
                         {menuAbierto && (
@@ -152,6 +153,10 @@ function App() {
                                 
                                 <button onClick={() => navegarA('tienda')} style={{ width: '100%', padding: '12px', textAlign: 'left', backgroundColor: 'transparent', border: 'none', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
                                     Ver Catálogo
+                                </button>
+
+                                <button onClick={() => navegarA('perfil')} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', borderBottom: '1px solid #eee' }}>
+                                    Mi Perfil
                                 </button>
 
                                 <button onClick={() => navegarA('mis-pedidos')} style={{ width: '100%', padding: '12px', textAlign: 'left', backgroundColor: 'transparent', border: 'none', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
@@ -200,6 +205,8 @@ function App() {
         {/* El carrito ahora recibe la función para regresar al catálogo */}
         {vistaActual === 'carrito' && <Carrito carrito={carrito} eliminarDelCarrito={eliminarDelCarrito} volver={() => navegarA('tienda')} />}
         
+        {vistaActual === 'perfil' && <Perfil />}
+
         {vistaActual === 'mis-pedidos' && <MisPedidos />}
 
         {/* Componente Protegido: Validación estricta de rol para el Panel de Administración */}

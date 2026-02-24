@@ -57,16 +57,35 @@ exports.loginUsuario = async (req, res) => {
             mensaje: 'Inicio de sesión exitoso', 
             token: token, 
             usuario: { 
-                nombre: usuario.nombre_completo, 
-                rol: usuario.rol,
                 id: usuario.id_usuario,
-                direccion: usuarioEncontrado.direccion || '', // Se añade manejo de nulos
-                telefono: usuarioEncontrado.telefono || ''
+                nombre_completo: usuario.nombre_completo, 
+                correo: usuario.correo || req.body.correo,
+                rol: usuario.rol,
+                direccion: usuario.direccion || '', // Se añade manejo de nulos
+                telefono: usuario.telefono || ''
             } 
         });
 
     } catch (error) {
         console.error('Error en el login:', error.message);
         res.status(500).json({ mensaje: 'Error interno al procesar el inicio de sesión' });
+    }
+};
+
+exports.actualizarPerfil = async (req, res) => {
+    // Obtenemos el ID del usuario desde el token desencriptado por el middleware
+    const id_usuario = req.usuario.id || req.usuario.id_usuario;
+    const { nombre_completo, direccion, telefono } = req.body;
+
+    try {
+        await db.query(
+            'UPDATE Usuarios SET nombre_completo = ?, direccion = ?, telefono = ? WHERE id_usuario = ?',
+            [nombre_completo, direccion, telefono, id_usuario]
+        );
+
+        res.status(200).json({ mensaje: 'Perfil actualizado exitosamente' });
+    } catch (error) {
+        console.error('Error al actualizar el perfil:', error);
+        res.status(500).json({ mensaje: 'Error interno al actualizar los datos' });
     }
 };
