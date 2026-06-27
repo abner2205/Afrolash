@@ -6,16 +6,26 @@ const authMiddleware = require('../middleware/authMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
 const uploadMiddleware = require('../middleware/uploadMiddleware');
 
-// RUTAS PÚBLICAS
-router.get('/', productoController.obtenerProductos); // Solo trae estado = 1
+// Configuración para recibir múltiples imágenes desde el formulario
+const cpUpload = uploadMiddleware.fields([
+    { name: 'imagen', maxCount: 1 }, 
+    { name: 'imagen_instrucciones', maxCount: 1 }, 
+    { name: 'imagen_consejos', maxCount: 1 }
+]);
+
+// RUTAS PÚBLICAS GENERALES
+router.get('/', productoController.obtenerProductos); 
 
 // RUTAS PRIVADAS (Solo Administradores)
-router.get('/admin', authMiddleware, adminMiddleware, productoController.obtenerTodosLosProductos); // Trae todos
-router.post('/', authMiddleware, adminMiddleware, uploadMiddleware.single('imagen'), productoController.crearProducto);
-router.put('/:id', authMiddleware, adminMiddleware, productoController.actualizarProducto);
+// IMPORTANTE: Deben declararse antes de cualquier ruta dinámica con /:id
+router.get('/admin', authMiddleware, adminMiddleware, productoController.obtenerTodosLosProductos);
+router.post('/', authMiddleware, adminMiddleware, cpUpload, productoController.crearProducto);
+router.put('/:id', authMiddleware, adminMiddleware, cpUpload, productoController.actualizarProducto);
 router.patch('/:id/estado', authMiddleware, adminMiddleware, productoController.cambiarEstadoProducto);
-
-// Actualmente inactiva pero presente por si llega a hacer falta
 router.delete('/:id', authMiddleware, adminMiddleware, productoController.eliminarProducto);
+
+// RUTAS PÚBLICAS INDIVIDUALES
+// Se coloca al final para evitar que intercepte palabras clave como "admin"
+router.get('/:id', productoController.obtenerProductoPorId); 
 
 module.exports = router;

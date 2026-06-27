@@ -11,4 +11,7 @@ router.post('/login', authController.loginUsuario);
 
 router.put('/perfil', authMiddleware, authController.actualizarPerfil);
 
+router.post('/recuperar-password', authController.solicitarRecuperacion);
+router.post('/restablecer-password/:id/:token', authController.restablecerPassword);
+
 module.exports = router;
