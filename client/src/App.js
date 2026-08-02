@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect} from 'react';
 import axios from 'axios';
 import Catalogo from './components/Catalogo';
 import Carrito from './components/Carrito';
 import Registro from './components/Registro';
 import Login from './components/Login';
-import PanelAdmin from './components/PanelAdmin';
 import MisPedidos from './components/MisPedidos';
 import Perfil from './components/Perfil';
 import RecuperarPassword from './components/RecuperarPassword';
 import RestablecerPassword from './components/RestablecerPassword';
 import DocumentosLegales from './components/DocumentosLegales';
 import Inicio from './components/Inicio';
-import ProductoDetalle from './components/ProductoDetalle'; // Importación de la nueva vista
+import ProductoDetalle from './components/ProductoDetalle'; 
+import AdminInventario from './components/admin/AdminInventario';
+import AdminVentas from './components/admin/AdminVentas';
+import AdminMetricas from './components/admin/AdminMetricas';
 
 function App() {
   const [carrito, setCarrito] = useState(() => {
@@ -29,8 +31,6 @@ function App() {
   
   // NUEVO: Estado para almacenar qué producto detallado se está viendo
   const [idDetalleProducto, setIdDetalleProducto] = useState(null);
-
-  const menuRef = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -126,6 +126,8 @@ function App() {
     
     if (vista !== 'tienda') setTerminoBusqueda('');
     window.scrollTo(0, 0); 
+
+    window.history.pushState({}, '', `/?vista=${vista}`);
   };
 
   return (
@@ -225,7 +227,16 @@ function App() {
               {usuarioActual?.rol === 'admin' && (
                   <div style={{ marginTop: '20px' }}>
                       <span style={{ display: 'block', padding: '0 5px 10px 5px', fontSize: '12px', color: '#888', fontWeight: 'bold', borderBottom: '1px solid #eee', marginBottom: '10px' }}>ADMINISTRACIÓN</span>
-                      <button onClick={() => navegarA('admin')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold' }}>Panel Administrativo</button>
+                      
+                      <button onClick={() => navegarA('admin-inventario')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-inventario' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold', marginBottom: '5px' }}>
+                          Gestión de Inventario
+                      </button>
+                      <button onClick={() => navegarA('admin-ventas')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-ventas' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold', marginBottom: '5px' }}>
+                          Registro de Ventas
+                      </button>
+                      <button onClick={() => navegarA('admin-metricas')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-metricas' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold' }}>
+                          Métricas y Rendimiento
+                      </button>
                   </div>
               )}
           </div>
@@ -241,9 +252,7 @@ function App() {
         {vistaActual === 'inicio' && <Inicio navegarA={navegarA} />}
         {vistaActual === 'tienda' && <Catalogo agregarAlCarrito={agregarAlCarrito} navegarA={navegarA} terminoBusqueda={terminoBusqueda} />}
         
-        {/* NUEVA RUTA: Renderiza el Detalle del Producto enviándole el ID seleccionado */}
         {vistaActual === 'detalle' && <ProductoDetalle idProducto={idDetalleProducto} agregarAlCarrito={agregarAlCarrito} navegarA={navegarA} />}
-        
         {vistaActual === 'registro' && <Registro navegarA={navegarA} />}
         {vistaActual === 'login' && <Login navegarA={navegarA} />}
         {vistaActual === 'recuperar' && <RecuperarPassword navegarA={navegarA} />}
@@ -254,16 +263,9 @@ function App() {
         {vistaActual === 'terminos' && <DocumentosLegales tipoDocumento="terminos" />}
         {vistaActual === 'privacidad' && <DocumentosLegales tipoDocumento="privacidad" />}
 
-        {vistaActual === 'admin' && (
-            usuarioActual && usuarioActual.rol === 'admin' ? (
-                <PanelAdmin />
-            ) : (
-                <div style={{ textAlign: 'center', padding: '50px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '8px', border: '1px solid #f5c6cb', marginTop: '40px' }}>
-                    <h2 style={{ marginBottom: '10px' }}>Acceso Restringido</h2>
-                    <p style={{ fontSize: '16px' }}>Tu sesión actual no cuenta con los privilegios necesarios.</p>
-                </div>
-            )
-        )}
+        {vistaActual === 'admin-inventario' && (usuarioActual?.rol === 'admin' ? <AdminInventario /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
+        {vistaActual === 'admin-ventas' && (usuarioActual?.rol === 'admin' ? <AdminVentas /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
+        {vistaActual === 'admin-metricas' && (usuarioActual?.rol === 'admin' ? <AdminMetricas /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
       </main>
 
       <footer style={{ backgroundColor: '#1A1A1A', color: '#FFFFFF', padding: '30px 20px', marginTop: 'auto' }}>
