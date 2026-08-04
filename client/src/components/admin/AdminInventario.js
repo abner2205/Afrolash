@@ -60,13 +60,13 @@ const AdminInventario = () => {
                 await axios.put(`http://localhost:5000/api/productos/${idEdicion}`, formData, {
                     headers: { ...configHeaders.headers, 'Content-Type': 'multipart/form-data' }
                 });
-                setModalMensaje({ visible: true, texto: 'Producto actualizado correctamente.', tipo: 'exito' });
+                setModalMensaje({ visible: true, texto: 'Producto actualizado correctamente, incluyendo las imágenes.', tipo: 'exito' });
             } else {
-                if (!imagen) return setModalMensaje({ visible: true, texto: 'Error: Selecciona la fotografía principal.', tipo: 'error' });
+                if (!imagen) return setModalMensaje({ visible: true, texto: 'Error: Selecciona la fotografía principal para el cosmético.', tipo: 'error' });
                 await axios.post('http://localhost:5000/api/productos', formData, {
                     headers: { ...configHeaders.headers, 'Content-Type': 'multipart/form-data' }
                 });
-                setModalMensaje({ visible: true, texto: 'Producto creado exitosamente.', tipo: 'exito' });
+                setModalMensaje({ visible: true, texto: 'Producto creado y publicado exitosamente.', tipo: 'exito' });
             }
             
             setModoEdicion(false);
@@ -76,6 +76,11 @@ const AdminInventario = () => {
             setImagen(null);
             setImagenInstrucciones(null);
             setImagenConsejos(null);
+            
+            if (document.getElementById('inputImagen')) document.getElementById('inputImagen').value = '';
+            if (document.getElementById('inputImagenInstrucciones')) document.getElementById('inputImagenInstrucciones').value = '';
+            if (document.getElementById('inputImagenConsejos')) document.getElementById('inputImagenConsejos').value = '';
+            
             cargarInventario();
         } catch (error) {
             setModalMensaje({ visible: true, texto: error.response?.data?.mensaje || 'Error procesando solicitud.', tipo: 'error' });
@@ -87,9 +92,14 @@ const AdminInventario = () => {
         setMostrarFormulario(true);
         setIdEdicion(producto.id_producto);
         setProductoData({ 
-            nombre: producto.nombre, descripcion: producto.descripcion, precio: producto.precio, stock: producto.stock,
-            ingredientes: producto.ingredientes || '', instrucciones_uso: producto.instrucciones_uso || '',
-            consejos: producto.consejos || '', precauciones: producto.precauciones || ''
+            nombre: producto.nombre, 
+            descripcion: producto.descripcion, 
+            precio: producto.precio, 
+            stock: producto.stock,
+            ingredientes: producto.ingredientes || '',
+            instrucciones_uso: producto.instrucciones_uso || '',
+            consejos: producto.consejos || '',
+            precauciones: producto.precauciones || ''
         });
         window.scrollTo(0, 0);
     };
@@ -104,7 +114,6 @@ const AdminInventario = () => {
         }
     };
 
-    // Función para exportar el inventario a Excel
     const exportarInventarioExcel = async () => {
         if (inventario.length === 0) {
             setModalMensaje({ visible: true, texto: 'El inventario está vacío, no hay datos para exportar.', tipo: 'info' });
@@ -176,7 +185,7 @@ const AdminInventario = () => {
                         onClick={exportarInventarioExcel}
                         style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
                     >
-                        Exportar Inventario
+                        Descargar Inventario Excel
                     </button>
                     {!mostrarFormulario && (
                         <button onClick={() => { setMostrarFormulario(true); setModoEdicion(false); }} style={{ padding: '10px 20px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -187,24 +196,59 @@ const AdminInventario = () => {
             </div>
 
             {mostrarFormulario && (
-                <div style={{ padding: '30px', border: '1px solid #F7CDD5', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#fff' }}>
-                    <h2 style={{ textAlign: 'center' }}>{modoEdicion ? 'Editar Producto' : 'Agregar Nuevo Cosmético'}</h2>
+                <div style={{ padding: '30px', border: '1px solid #F7CDD5', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                    <h2 style={{ textAlign: 'center', marginTop: 0, color: '#1A1A1A', marginBottom: '25px' }}>{modoEdicion ? 'Editar Producto' : 'Agregar Nuevo Cosmético'}</h2>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <input type="text" name="nombre" placeholder="Nombre del Producto" value={productoData.nombre} onChange={handleChange} required style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc' }} />
-                        <textarea name="descripcion" placeholder="Descripción General" value={productoData.descripcion} onChange={handleChange} required style={{ padding: '12px', minHeight: '80px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                        
+                        <h3 style={{ margin: '0 0 5px 0', borderBottom: '1px solid #eee', color: '#1A1A1A', paddingBottom: '5px', fontSize: '16px' }}>Información Básica (Obligatoria)</h3>
+                        <input type="text" name="nombre" placeholder="Nombre del Producto" value={productoData.nombre} onChange={handleChange} required style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
+                        <textarea name="descripcion" placeholder="Descripción General" value={productoData.descripcion} onChange={handleChange} required style={{ padding: '12px', minHeight: '80px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
                         <div style={{ display: 'flex', gap: '15px' }}>
-                            <input type="number" name="precio" placeholder="Precio ($)" step="0.01" value={productoData.precio} onChange={handleChange} required style={{ padding: '12px', flex: 1, borderRadius: '4px', border: '1px solid #ccc' }} />
-                            <input type="number" name="stock" placeholder="Unidades en Stock" value={productoData.stock} onChange={handleChange} required style={{ padding: '12px', flex: 1, borderRadius: '4px', border: '1px solid #ccc' }} />
+                            <input type="number" name="precio" placeholder="Precio ($)" step="0.01" value={productoData.precio} onChange={handleChange} required style={{ padding: '12px', flex: 1, borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
+                            <input type="number" name="stock" placeholder="Unidades en Stock" value={productoData.stock} onChange={handleChange} required style={{ padding: '12px', flex: 1, borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
                         </div>
+                        
                         <div style={{ marginBottom: '10px' }}>
-                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Fotografía Principal:</label>
-                            <input type="file" accept="image/*" onChange={(e) => setImagen(e.target.files[0])} required={!modoEdicion} />
+                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>
+                                Fotografía Principal {modoEdicion ? '(Opcional: Subir archivo para reemplazar actual)' : '(Obligatoria)'}:
+                            </label>
+                            <input type="file" id="inputImagen" accept="image/*" onChange={(e) => setImagen(e.target.files[0])} required={!modoEdicion} style={{ color: '#555' }} />
                         </div>
+
+                        <h3 style={{ margin: '15px 0 5px 0', borderBottom: '1px solid #eee', color: '#1A1A1A', paddingBottom: '5px', fontSize: '16px' }}>Información Detallada (Opcional)</h3>
+                        
+                        <textarea name="ingredientes" placeholder="Listado de ingredientes..." value={productoData.ingredientes} onChange={handleChange} style={{ padding: '12px', minHeight: '60px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
+                        
+                        <textarea name="instrucciones_uso" placeholder="Instrucciones paso a paso..." value={productoData.instrucciones_uso} onChange={handleChange} style={{ padding: '12px', minHeight: '60px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
+                        
+                        <div style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px', border: '1px dashed #ccc' }}>
+                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A', fontSize: '13px' }}>
+                                Imagen Complementaria para Instrucciones {modoEdicion && '(Opcional: Reemplazar actual)'}:
+                            </label>
+                            <input type="file" id="inputImagenInstrucciones" accept="image/*" onChange={(e) => setImagenInstrucciones(e.target.files[0])} style={{ color: '#555', fontSize: '13px' }} />
+                        </div>
+
+                        <textarea name="consejos" placeholder="Consejos adicionales de uso..." value={productoData.consejos} onChange={handleChange} style={{ padding: '12px', minHeight: '60px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
+                        
+                        <div style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px', border: '1px dashed #ccc' }}>
+                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A', fontSize: '13px' }}>
+                                Imagen Complementaria para Consejos {modoEdicion && '(Opcional: Reemplazar actual)'}:
+                            </label>
+                            <input type="file" id="inputImagenConsejos" accept="image/*" onChange={(e) => setImagenConsejos(e.target.files[0])} style={{ color: '#555', fontSize: '13px' }} />
+                        </div>
+
+                        <textarea name="precauciones" placeholder="Precauciones y advertencias..." value={productoData.precauciones} onChange={handleChange} style={{ padding: '12px', minHeight: '60px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C' }} />
+
                         <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                            <button type="submit" style={{ flex: 1, padding: '15px', backgroundColor: modoEdicion ? '#CFA144' : '#D97A8C', color: modoEdicion ? '#1A1A1A' : 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                {modoEdicion ? 'Guardar Cambios' : 'Registrar Producto'}
+                            <button type="submit" style={{ flex: 1, padding: '15px', backgroundColor: modoEdicion ? '#CFA144' : '#D97A8C', color: modoEdicion ? '#1A1A1A' : 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+                                {modoEdicion ? 'Guardar Cambios del Producto' : 'Registrar Nuevo Producto'}
                             </button>
-                            <button type="button" onClick={() => setMostrarFormulario(false)} style={{ padding: '15px 30px', backgroundColor: '#1A1A1A', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                            
+                            <button type="button" onClick={() => { 
+                                setMostrarFormulario(false); 
+                                setModoEdicion(false); 
+                                setProductoData({ nombre: '', descripcion: '', precio: '', stock: '', ingredientes: '', instrucciones_uso: '', consejos: '', precauciones: '' }); 
+                            }} style={{ padding: '15px 30px', backgroundColor: '#1A1A1A', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                                 Cancelar
                             </button>
                         </div>

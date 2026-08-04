@@ -314,7 +314,7 @@ function App() {
               justifyContent: 'center', 
               alignItems: 'center', 
               boxShadow: '0 4px 15px rgba(0,0,0,0.2)', 
-              zIndex: 9999,
+              zIndex: 90,
               cursor: 'pointer'
           }}
       >
