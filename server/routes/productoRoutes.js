@@ -4,6 +4,7 @@ const productoController = require('../controllers/productoController');
 
 const authMiddleware = require('../middleware/authMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
+const verificarPersonal = require('../middleware/verificarPersonal'); // NUEVO MIDDLEWARE
 const uploadMiddleware = require('../middleware/uploadMiddleware');
 
 // Configuración para recibir múltiples imágenes desde el formulario
@@ -16,9 +17,13 @@ const cpUpload = uploadMiddleware.fields([
 // RUTAS PÚBLICAS GENERALES
 router.get('/', productoController.obtenerProductos); 
 
-// RUTAS PRIVADAS (Solo Administradores)
+// RUTAS PRIVADAS (Panel de Control)
 // IMPORTANTE: Deben declararse antes de cualquier ruta dinámica con /:id
-router.get('/admin', authMiddleware, adminMiddleware, productoController.obtenerTodosLosProductos);
+
+// Lectura de inventario permitida para Administradores y Empleados
+router.get('/admin', authMiddleware, verificarPersonal, productoController.obtenerTodosLosProductos);
+
+// Escritura y eliminación exclusivas para Administradores
 router.post('/', authMiddleware, adminMiddleware, cpUpload, productoController.crearProducto);
 router.put('/:id', authMiddleware, adminMiddleware, cpUpload, productoController.actualizarProducto);
 router.patch('/:id/estado', authMiddleware, adminMiddleware, productoController.cambiarEstadoProducto);

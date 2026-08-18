@@ -3,6 +3,7 @@ require('dotenv').config(); // Carga las variables de .env
 const express = require('express');
 const cors = require('cors');
 const pagoRoutes = require('./routes/pagoRoutes');
+const usuarioRoutes = require('./routes/usuarioRoutes');
 
 // Importa la conexión a la base de datos
 const db = require('./config/db');
@@ -14,6 +15,8 @@ const app = express();
 app.use(cors()); 
 // Permite que el servidor entienda y procese datos en formato JSON
 app.use(express.json()); 
+
+app.use('/api/usuarios', usuarioRoutes);
 
 // Rutas de la API
 const authRoutes = require('./routes/authRoutes');

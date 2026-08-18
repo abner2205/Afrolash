@@ -14,6 +14,7 @@ import ProductoDetalle from './components/ProductoDetalle';
 import AdminInventario from './components/admin/AdminInventario';
 import AdminVentas from './components/admin/AdminVentas';
 import AdminMetricas from './components/admin/AdminMetricas';
+import AdminUsuarios from './components/admin/AdminUsuarios';
 
 function App() {
   const [carrito, setCarrito] = useState(() => {
@@ -224,19 +225,32 @@ function App() {
               <button onClick={() => navegarA('perfil')} style={{ textAlign: 'left', padding: '15px', backgroundColor: '#f9f9f9', border: 'none', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#333', fontWeight: 'bold' }}>Mi Perfil de Cliente</button>
               <button onClick={() => navegarA('mis-pedidos')} style={{ textAlign: 'left', padding: '15px', backgroundColor: '#f9f9f9', border: 'none', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#333', fontWeight: 'bold' }}>Historial de Pedidos</button>
               
-              {usuarioActual?.rol === 'admin' && (
+              {(usuarioActual?.rol === 'admin' || usuarioActual?.rol === 'empleado') && (
                   <div style={{ marginTop: '20px' }}>
-                      <span style={{ display: 'block', padding: '0 5px 10px 5px', fontSize: '12px', color: '#888', fontWeight: 'bold', borderBottom: '1px solid #eee', marginBottom: '10px' }}>ADMINISTRACIÓN</span>
+                      <span style={{ display: 'block', padding: '0 5px 10px 5px', fontSize: '12px', color: '#888', fontWeight: 'bold', borderBottom: '1px solid #eee', marginBottom: '10px' }}>OPERACIONES</span>
                       
+                      {/* El empleado y el administrador pueden ver el inventario */}
                       <button onClick={() => navegarA('admin-inventario')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-inventario' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold', marginBottom: '5px' }}>
-                          Gestión de Inventario
+                          Consulta de Inventario
                       </button>
+                      
+                      {/* El empleado y el administrador pueden gestionar las ventas */}
                       <button onClick={() => navegarA('admin-ventas')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-ventas' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold', marginBottom: '5px' }}>
-                          Registro de Ventas
+                          Gestión de Pedidos
                       </button>
-                      <button onClick={() => navegarA('admin-metricas')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-metricas' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold' }}>
-                          Métricas y Rendimiento
-                      </button>
+                      
+                      {/* MODIFICACIÓN: Las métricas de rendimiento son EXCLUSIVAS del administrador */}
+                      {usuarioActual?.rol === 'admin' && (
+                          <button onClick={() => navegarA('admin-metricas')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-metricas' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold' }}>
+                              Métricas Financieras
+                          </button>
+                      )}
+                      {/* MODIFICACIÓN: Gestión de Personal EXCLUSIVA del administrador */}
+                      {usuarioActual?.rol === 'admin' && (
+                          <button onClick={() => navegarA('admin-usuarios')} style={{ width: '100%', textAlign: 'left', padding: '15px', backgroundColor: vistaActual === 'admin-usuarios' ? '#F7CDD5' : '#fcf2f4', border: '1px solid #F7CDD5', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', color: '#D97A8C', fontWeight: 'bold', marginTop: '5px' }}>
+                              Gestión de Usuarios
+                          </button>
+                      )}
                   </div>
               )}
           </div>
@@ -263,9 +277,10 @@ function App() {
         {vistaActual === 'terminos' && <DocumentosLegales tipoDocumento="terminos" />}
         {vistaActual === 'privacidad' && <DocumentosLegales tipoDocumento="privacidad" />}
 
-        {vistaActual === 'admin-inventario' && (usuarioActual?.rol === 'admin' ? <AdminInventario /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
-        {vistaActual === 'admin-ventas' && (usuarioActual?.rol === 'admin' ? <AdminVentas /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
+        {vistaActual === 'admin-inventario' && ((usuarioActual?.rol === 'admin' || usuarioActual?.rol === 'empleado') ? <AdminInventario usuarioActual={usuarioActual} /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
+        {vistaActual === 'admin-ventas' && ((usuarioActual?.rol === 'admin' || usuarioActual?.rol === 'empleado') ? <AdminVentas /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
         {vistaActual === 'admin-metricas' && (usuarioActual?.rol === 'admin' ? <AdminMetricas /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
+        {vistaActual === 'admin-usuarios' && (usuarioActual?.rol === 'admin' ? <AdminUsuarios /> : <div style={{textAlign: 'center', padding: '50px'}}>Acceso Restringido</div>)}
       </main>
 
       <footer style={{ backgroundColor: '#1A1A1A', color: '#FFFFFF', padding: '30px 20px', marginTop: 'auto' }}>

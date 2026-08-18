@@ -3,7 +3,7 @@ import axios from 'axios';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
-const AdminInventario = () => {
+const AdminInventario = ({ usuarioActual }) => {
     const [inventario, setInventario] = useState([]);
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
     const [productoData, setProductoData] = useState({ 
@@ -187,7 +187,7 @@ const AdminInventario = () => {
                     >
                         Descargar Inventario Excel
                     </button>
-                    {!mostrarFormulario && (
+                    {!mostrarFormulario && usuarioActual?.rol === 'admin' && (
                         <button onClick={() => { setMostrarFormulario(true); setModoEdicion(false); }} style={{ padding: '10px 20px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                             + Agregar Nuevo Cosmético
                         </button>
@@ -279,10 +279,17 @@ const AdminInventario = () => {
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                                    <button onClick={() => iniciarEdicion(item)} style={{ padding: '6px 12px', backgroundColor: '#CFA144', color: '#1A1A1A', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>Editar</button>
-                                    <button onClick={() => alternarEstado(item.id_producto, item.estado)} style={{ padding: '6px 12px', backgroundColor: item.estado === 1 ? '#dc3545' : '#28a745', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>
-                                        {item.estado === 1 ? 'Ocultar' : 'Activar'}
-                                    </button>
+                                    {/* Los botones operativos solo se muestran al administrador */}
+                                    {usuarioActual?.rol === 'admin' ? (
+                                        <>
+                                            <button onClick={() => iniciarEdicion(item)} style={{ padding: '6px 12px', backgroundColor: '#CFA144', color: '#1A1A1A', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>Editar</button>
+                                            <button onClick={() => alternarEstado(item.id_producto, item.estado)} style={{ padding: '6px 12px', backgroundColor: item.estado === 1 ? '#dc3545' : '#28a745', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                {item.estado === 1 ? 'Ocultar' : 'Activar'}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <span style={{ color: '#888', fontSize: '12px' }}>Solo Lectura</span>
+                                    )}
                                 </div>
                             </td>
                         </tr>
