@@ -7,16 +7,19 @@ Bienvenido al repositorio de **Afrolash** (plataforma e-commerce de cosméticos 
 ## 1. Estructura del Repositorio
 
 - `client/`: Aplicación Frontend SPA en React 19 (`Create React App`).
-  - `client/src/App.js`: Enrutador de vistas por estado (`inicio`, `tienda`, `detalle`, `carrito`, `login`, `registro`, `recuperar`, `restablecer`, `perfil`, `mis-pedidos`, `admin`, `terminos`, `privacidad`), gestión del carrito en `localStorage` e interceptor de sesión Axios (`401`/`403`).
+  - `client/src/App.js`: Enrutador de vistas por estado (`inicio`, `tienda`, `detalle`, `carrito`, `login`, `registro`, `recuperar`, `restablecer`, `perfil`, `mis-pedidos`, `terminos`, `privacidad`, `admin-inventario`, `admin-ventas`, `admin-metricas`, `admin-usuarios`), gestión del carrito en `localStorage`, interceptor de sesión Axios (`401`/`403`), footer con redes sociales y botón flotante de WhatsApp.
   - `client/src/components/`: Componentes de vista (`Inicio.js`, `Catalogo.js`, `ProductoDetalle.js`, `Carrito.js`, `FormularioPago.js`, `Login.js`, `Registro.js`, `RecuperarPassword.js`, `RestablecerPassword.js`, `Perfil.js`, `MisPedidos.js`, `PanelAdmin.js`, `DocumentosLegales.js`).
+  - `client/src/components/admin/`: Subcomponentes modulares de operaciones y administración (`AdminInventario.js`, `AdminVentas.js`, `AdminMetricas.js`, `AdminUsuarios.js`).
+  - `client/src/*.test.js`: Pruebas automatizadas de frontend con Jest y React Testing Library (`App.test.js`, `Carrito.test.js`).
   - `client/public/img/`: Almacenamiento de imágenes de productos servidas estáticamente y subidas desde el backend con Multer.
 - `server/`: API REST Backend en Node.js y Express 5 (`CommonJS`).
-  - `server/index.js`: Punto de entrada Express (`/api/auth`, `/api/productos`, `/api/pedidos`, `/api/pagos`).
+  - `server/index.js`: Punto de entrada Express (`/api/usuarios`, `/api/auth`, `/api/productos`, `/api/pedidos`, `/api/pagos`).
   - `server/config/db.js`: Pool de conexiones MySQL asíncrono (`mysql2/promise`).
-  - `server/controllers/`: Lógica de negocio y endpoints (`authController.js`, `productoController.js`, `pedidoController.js`, `pagoController.js`).
-  - `server/middleware/`: Autenticación JWT (`authMiddleware.js`), control de rol administrador (`adminMiddleware.js`) y carga de imágenes JPEG/JPG/PNG/WEBP (`uploadMiddleware.js`).
-  - `server/routes/`: Definición de rutas REST (`authRoutes.js`, `productoRoutes.js`, `pedidoRoutes.js`, `pagoRoutes.js`).
+  - `server/controllers/`: Lógica de negocio y endpoints (`authController.js`, `productoController.js`, `pedidoController.js`, `pagoController.js`, `usuarioController.js`).
+  - `server/middleware/`: Autenticación JWT (`authMiddleware.js`), control de rol administrador (`adminMiddleware.js`), control de rol personal `admin`/`empleado` (`verificarPersonal.js`) y carga de imágenes JPEG/JPG/PNG/WEBP (`uploadMiddleware.js`).
+  - `server/routes/`: Definición de rutas REST (`authRoutes.js`, `productoRoutes.js`, `pedidoRoutes.js`, `pagoRoutes.js`, `usuarioRoutes.js`).
   - `server/utils/enviarFactura.js`: Generación de facturas PDF (`pdfkit`) en Base64 y envío por correo (`nodemailer`).
+  - `server/auditoria.test.js`: Pruebas de integración backend con Jest (disparadores de auditoría en MySQL).
 - `docs/`: Documentación del proyecto y `docs/constitution.md`.
 - `specs/`: Especificaciones SDD (`specs/NNN-nombre/spec.md`, `plan.md`, `tasks.md`).
 - `.agents/`:
@@ -42,9 +45,9 @@ Bienvenido al repositorio de **Afrolash** (plataforma e-commerce de cosméticos 
 - **Ejecutar Aplicación**:
   ```powershell
   # Backend (API en http://localhost:5000)
-  node server/index.js
+  npm --prefix server start
   # O en desarrollo con recarga automática:
-  cd server; npx nodemon index.js
+  npm --prefix server run dev
 
   # Frontend (SPA en http://localhost:3000)
   npm --prefix client start
@@ -62,13 +65,14 @@ Bienvenido al repositorio de **Afrolash** (plataforma e-commerce de cosméticos 
 
 1. **Lenguaje y Estilo**:
    - JavaScript ES6+ (`ES Modules` en `client/` con componentes funcionales y Hooks de React; `CommonJS` `require`/`module.exports` en `server/`). Mantener cero errores y advertencias críticas de ESLint en `npm --prefix client run build`.
-   - Convención de nombres: `PascalCase` para componentes React (`ProductoDetalle.js`, `PanelAdmin.js`), `camelCase` para funciones, controladores, rutas y variables (`obtenerProductos`, `procesarPedido`), `snake_case` para columnas de base de datos MySQL y payloads asociados (`id_usuario`, `id_producto`, `precio_unitario`, `direccion_envio`, `imagen_url`), y `UPPER_SNAKE_CASE` para variables de entorno (`DB_HOST`, `JWT_SECRET`, `STRIPE_SECRET_KEY`).
+   - Convención de nombres: `PascalCase` para componentes React (`ProductoDetalle.js`, `AdminInventario.js`), `camelCase` para funciones, controladores, rutas y variables (`obtenerProductos`, `procesarPedido`), `snake_case` para columnas de base de datos MySQL y payloads asociados (`id_usuario`, `id_producto`, `precio_unitario`, `direccion_envio`, `imagen_url`), y `UPPER_SNAKE_CASE` para variables de entorno (`DB_HOST`, `JWT_SECRET`, `STRIPE_SECRET_KEY`).
 2. **Arquitectura y Capas**:
-   - Mantener desacopladas las vistas de React (`client/src/components/`), las rutas y middlewares Express (`server/routes/`, `server/middleware/`), la lógica de controladores (`server/controllers/`) y las utilidades (`server/utils/`).
+   - Mantener desacopladas las vistas de React (`client/src/components/` y `client/src/components/admin/`), las rutas y middlewares Express (`server/routes/`, `server/middleware/`), la lógica de controladores (`server/controllers/`) y las utilidades (`server/utils/`).
+   - Respetar el modelo de autorización por roles (`cliente`, `empleado` mediante `verificarPersonal`, y `admin` mediante `adminMiddleware`).
    - Usar obligatoriamente `async/await` con bloques `try/catch` en controladores y llamadas a base de datos o servicios externos (Stripe, Nodemailer) para evitar bloquear el Event Loop.
 3. **Persistencia y Estado**:
    - Usar consultas SQL parametrizadas (`?`) mediante el pool de `mysql2/promise` para prevenir inyección SQL; preservar la integridad de inventario (`stock` y `estado`) en los pedidos y liberar conexiones correctamente.
-   - Nunca subir archivos `.env`, credenciales reales, llaves de Stripe ni contraseñas al repositorio (usar `server/.env.example` como plantilla).
+   - Nunca subir archivos `.env`, credenciales reales, llaves de Stripe ni contraseñas al repositorio (usar `client/.env.example` y `server/.env.example` como plantillas).
 
 ---
 
