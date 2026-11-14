@@ -1,2 +1,17 @@
-node_modules/
+# dependencies
+/node_modules
+
+# testing
+/coverage
+
+# environment variables
 .env
+.env.*
+!.env.example
+
+# misc & logs
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
