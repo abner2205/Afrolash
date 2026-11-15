@@ -1,114 +1,161 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
 const RecuperarPassword = ({ navegarA }) => {
-    const [correo, setCorreo] = useState('');
-    const [cargando, setCargando] = useState(false);
-    
-    // NUEVO: Estado centralizado para el Modal Inteligente
-    const [modalMensaje, setModalMensaje] = useState({ visible: false, texto: '', tipo: 'info' });
+  const [correo, setCorreo] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [modalMensaje, setModalMensaje] = useState({
+    visible: false,
+    texto: '',
+    tipo: 'info',
+  });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setCargando(true);
-        try {
-            await axios.post('http://localhost:5000/api/auth/recuperar-password', { correo });
-            setModalMensaje({ 
-                visible: true, 
-                texto: 'Si el correo está registrado, recibirás un enlace de recuperación en los próximos minutos.', 
-                tipo: 'exito' 
-            });
-        } catch (error) {
-            setModalMensaje({ 
-                visible: true, 
-                texto: 'Ocurrió un error al procesar la solicitud. Verifica tu conexión e intenta nuevamente.', 
-                tipo: 'error' 
-            });
-        } finally {
-            setCargando(false);
-        }
+  const montadoRef = useRef(true);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
+
+  const cerrarModal = useCallback(() => {
+    const esExito = modalMensaje.tipo === 'exito';
+    setModalMensaje({ visible: false, texto: '', tipo: 'info' });
+    if (esExito) {
+      navegarA('login');
+    }
+  }, [modalMensaje.tipo, navegarA]);
+
+  useEffect(() => {
+    if (!modalMensaje.visible) return undefined;
+
+    const manejarEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        cerrarModal();
+      }
     };
 
-    return (
-        <div style={{ maxWidth: '400px', margin: '60px auto', padding: '30px', border: '1px solid #F7CDD5', borderRadius: '8px', backgroundColor: '#fff', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#1A1A1A' }}>Recuperar Contraseña</h2>
-            
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#1A1A1A' }}>Correo Electrónico:</label>
-                    <input 
-                        type="email" 
-                        placeholder="Ingresa tu correo electrónico" 
-                        value={correo} 
-                        onChange={(e) => setCorreo(e.target.value)} 
-                        required 
-                        style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box', outlineColor: '#D97A8C' }} 
-                    />
-                </div>
+    document.addEventListener('keydown', manejarEscape);
+    return () => {
+      document.removeEventListener('keydown', manejarEscape);
+    };
+  }, [modalMensaje.visible, cerrarModal]);
 
-                <button 
-                    type="submit" 
-                    disabled={cargando} 
-                    style={{ 
-                        padding: '12px', 
-                        backgroundColor: cargando ? '#6c757d' : '#D97A8C', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: '4px', 
-                        cursor: cargando ? 'not-allowed' : 'pointer', 
-                        fontWeight: 'bold', 
-                        fontSize: '16px',
-                        transition: 'background-color 0.3s'
-                    }}
-                >
-                    {cargando ? 'Enviando...' : 'Enviar enlace'}
-                </button>
-            </form>
-            
-            <p 
-                style={{ textAlign: 'center', marginTop: '25px', fontSize: '14px', cursor: 'pointer', color: '#4682B4', textDecoration: 'underline', fontWeight: 'bold' }} 
-                onClick={() => navegarA('login')}
-            >
-                Volver al inicio de sesión
-            </p>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (cargando) return;
 
-            {/* MODAL DE CONFIRMACIÓN / ERROR */}
-            {modalMensaje.visible && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        
-                        <div style={{ 
-                            width: '50px', height: '50px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px', margin: '0 auto 15px auto', fontWeight: 'bold',
-                            backgroundColor: modalMensaje.tipo === 'exito' ? '#d4edda' : '#f8d7da',
-                            color: modalMensaje.tipo === 'exito' ? '#28a745' : '#dc3545'
-                        }}>
-                            {modalMensaje.tipo === 'exito' ? '✓' : '!'}
-                        </div>
-                        
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1A1A1A', fontSize: '20px' }}>
-                            {modalMensaje.tipo === 'exito' ? 'Solicitud Enviada' : 'Atención Requerida'}
-                        </h3>
-                        
-                        <p style={{ margin: '0 0 25px 0', color: '#555', fontSize: '15px' }}>
-                            {modalMensaje.texto}
-                        </p>
-                        
-                        <button 
-                            onClick={() => {
-                                setModalMensaje({ visible: false, texto: '', tipo: 'info' });
-                                if (modalMensaje.tipo === 'exito') {
-                                    navegarA('login'); // Redirige opcionalmente si es exitoso
-                                }
-                            }} 
-                            style={{ width: '100%', padding: '12px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                        >
-                            Entendido
-                        </button>
-                    </div>
-                </div>
-            )}
+    setCargando(true);
+    try {
+      await axios.post('http://localhost:5000/api/auth/recuperar-password', { correo });
+      if (montadoRef.current) {
+        setModalMensaje({
+          visible: true,
+          texto:
+            'Si el correo está registrado, recibirás un enlace de recuperación en los próximos minutos.',
+          tipo: 'exito',
+        });
+      }
+    } catch (error) {
+      if (montadoRef.current) {
+        setModalMensaje({
+          visible: true,
+          texto:
+            'Ocurrió un error al procesar la solicitud. Verifica tu conexión e intenta nuevamente.',
+          tipo: 'error',
+        });
+      }
+    } finally {
+      if (montadoRef.current) {
+        setCargando(false);
+      }
+    }
+  };
+
+  return (
+    <section className="afro-form-card afro-form-card--auth" aria-labelledby="recuperar-titulo">
+      <h1 id="recuperar-titulo" className="afro-auth-title">
+        Recuperar Contraseña
+      </h1>
+      <p className="afro-auth-subtitle">
+        Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu acceso.
+      </p>
+
+      <form onSubmit={handleSubmit} className="afro-form-stack">
+        <div className="afro-field">
+          <label htmlFor="recuperar-correo" className="afro-label">
+            Correo Electrónico
+          </label>
+          <input
+            id="recuperar-correo"
+            type="email"
+            name="correo"
+            className="afro-input"
+            placeholder="Ingresa tu correo electrónico"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            required
+            autoComplete="email"
+          />
         </div>
-    );
+
+        <button type="submit" disabled={cargando} className="afro-btn afro-btn-primary afro-btn-full">
+          {cargando ? 'Enviando...' : 'Enviar enlace'}
+        </button>
+      </form>
+
+      <div className="afro-auth-links">
+        <button
+          type="button"
+          className="afro-link-btn afro-link-btn--inline"
+          onClick={() => navegarA('login')}
+        >
+          Volver al inicio de sesión
+        </button>
+      </div>
+
+      {modalMensaje.visible ? (
+        <div className="afro-modal-backdrop" onClick={cerrarModal}>
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recuperar-modal-title"
+            aria-describedby="recuperar-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className={
+                modalMensaje.tipo === 'exito'
+                  ? 'afro-modal-icon-success'
+                  : 'afro-modal-icon-danger'
+              }
+              aria-hidden="true"
+            >
+              {modalMensaje.tipo === 'exito' ? '✓' : '!'}
+            </div>
+            <h2 id="recuperar-modal-title" className="afro-modal-title">
+              {modalMensaje.tipo === 'exito' ? 'Solicitud Enviada' : 'Atención Requerida'}
+            </h2>
+            <p id="recuperar-modal-desc" className="afro-modal-body">
+              {modalMensaje.texto}
+            </p>
+            <div className="afro-modal-actions">
+              <button
+                type="button"
+                className="afro-btn afro-btn-dark afro-btn-full"
+                onClick={cerrarModal}
+                autoFocus
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 export default RecuperarPassword;

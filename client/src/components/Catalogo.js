@@ -1,209 +1,426 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 
+const PRODUCTOS_POR_PAGINA = 10;
+
+const formatearPrecio = (precio) => {
+  const numero = Number(precio);
+  return Number.isFinite(numero) ? `$${numero.toFixed(2)}` : `$${precio}`;
+};
+
 const Catalogo = ({ agregarAlCarrito, navegarA, terminoBusqueda }) => {
-    const [productos, setProductos] = useState([]);
-    
-    const [paginaActual, setPaginaActual] = useState(1);
-    const [productosPorPagina] = useState(10);
-    const [criterioOrden, setCriterioOrden] = useState('alfabetico');
+  const [productos, setProductos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
 
-    const [cantidades, setCantidades] = useState({});
-    const [modalConfirmacion, setModalConfirmacion] = useState({ visible: false, productoNombre: '', cantidad: 0 });
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [criterioOrden, setCriterioOrden] = useState('alfabetico');
 
-    const obtenerDatos = async () => {
-        try {
-            const respuesta = await axios.get('http://localhost:5000/api/productos');
-            setProductos(respuesta.data);
-        } catch (error) {
-            console.error('Error al cargar el catálogo:', error);
-        }
+  const [cantidades, setCantidades] = useState({});
+  const [modalConfirmacion, setModalConfirmacion] = useState({
+    visible: false,
+    productoNombre: '',
+    cantidad: 0,
+  });
+
+  const montadoRef = useRef(true);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
+
+  const obtenerDatos = useCallback(async () => {
+    setCargando(true);
+    setErrorCarga('');
+    try {
+      const respuesta = await axios.get('http://localhost:5000/api/productos');
+      if (!montadoRef.current) return;
+      setProductos(Array.isArray(respuesta.data) ? respuesta.data : []);
+    } catch (error) {
+      console.error('Error al cargar el catálogo:', error);
+      if (montadoRef.current) {
+        setErrorCarga(
+          'No pudimos cargar los productos del catálogo. Verifica tu conexión e intenta nuevamente.'
+        );
+      }
+    } finally {
+      if (montadoRef.current) {
+        setCargando(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    obtenerDatos();
+  }, [obtenerDatos]);
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [terminoBusqueda, criterioOrden]);
+
+  const cerrarModalConfirmacion = useCallback(() => {
+    setModalConfirmacion({ visible: false, productoNombre: '', cantidad: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (!modalConfirmacion.visible) return undefined;
+
+    const manejarEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        cerrarModalConfirmacion();
+      }
     };
 
-    useEffect(() => {
-        obtenerDatos();
-    }, []);
+    document.addEventListener('keydown', manejarEscape);
+    return () => {
+      document.removeEventListener('keydown', manejarEscape);
+    };
+  }, [modalConfirmacion.visible, cerrarModalConfirmacion]);
 
-    // Reinicia la página a 1 cuando el usuario escribe en la barra de búsqueda del Header o cambia el orden
-    useEffect(() => {
-        setPaginaActual(1);
-    }, [terminoBusqueda, criterioOrden]);
+  const productosProcesados = useMemo(() => {
+    const busquedaSegura = (terminoBusqueda || '').trim().toLowerCase();
+    const filtrados = busquedaSegura
+      ? productos.filter((producto) =>
+          (producto.nombre || '').toLowerCase().includes(busquedaSegura)
+        )
+      : productos;
 
-    // Lógica de Paginación y Ordenamiento conectada a App.js
-    const busquedaSegura = terminoBusqueda || '';
-    let productosProcesados = productos.filter(producto =>
-        producto.nombre.toLowerCase().includes(busquedaSegura.toLowerCase())
-    );
-
+    const copiaOrdenada = [...filtrados];
     if (criterioOrden === 'alfabetico') {
-        productosProcesados.sort((a, b) => a.nombre.localeCompare(b.nombre));
+      copiaOrdenada.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
     } else if (criterioOrden === 'precio_asc') {
-        productosProcesados.sort((a, b) => parseFloat(a.precio) - parseFloat(b.precio));
+      copiaOrdenada.sort((a, b) => parseFloat(a.precio) - parseFloat(b.precio));
     } else if (criterioOrden === 'precio_desc') {
-        productosProcesados.sort((a, b) => parseFloat(b.precio) - parseFloat(a.precio));
+      copiaOrdenada.sort((a, b) => parseFloat(b.precio) - parseFloat(a.precio));
     }
 
-    const indiceUltimoProducto = paginaActual * productosPorPagina;
-    const indicePrimerProducto = indiceUltimoProducto - productosPorPagina;
-    const productosPaginados = productosProcesados.slice(indicePrimerProducto, indiceUltimoProducto);
-    const totalPaginas = Math.ceil(productosProcesados.length / productosPorPagina);
+    return copiaOrdenada;
+  }, [productos, terminoBusqueda, criterioOrden]);
 
-    const obtenerCantidadActual = (id) => {
-        return cantidades[id] || 1; 
-    };
+  const totalPaginas = Math.ceil(productosProcesados.length / PRODUCTOS_POR_PAGINA);
 
-    const manejarCambioManual = (id, valorStr, stockMaximo) => {
-        let valor = parseInt(valorStr);
-        if (isNaN(valor)) valor = ''; 
-        if (valor !== '' && valor > stockMaximo) valor = stockMaximo;
-        
-        setCantidades({ ...cantidades, [id]: valor });
-    };
+  const productosPaginados = useMemo(() => {
+    const indiceUltimoProducto = paginaActual * PRODUCTOS_POR_PAGINA;
+    const indicePrimerProducto = indiceUltimoProducto - PRODUCTOS_POR_PAGINA;
+    return productosProcesados.slice(indicePrimerProducto, indiceUltimoProducto);
+  }, [productosProcesados, paginaActual]);
 
-    const ajustarCantidad = (id, incremento, stockMaximo) => {
-        let actual = obtenerCantidadActual(id);
-        if (actual === '') actual = 0;
-        
-        let nuevaCantidad = actual + incremento;
-        if (nuevaCantidad < 1) nuevaCantidad = 1;
-        if (nuevaCantidad > stockMaximo) nuevaCantidad = stockMaximo;
+  const obtenerCantidadActual = (id) => {
+    return cantidades[id] !== undefined ? cantidades[id] : 1;
+  };
 
-        setCantidades({ ...cantidades, [id]: nuevaCantidad });
-    };
+  const manejarCambioManual = (id, valorStr, stockMaximo) => {
+    if (valorStr === '') {
+      setCantidades((prev) => ({ ...prev, [id]: '' }));
+      return;
+    }
 
-    const procesarAgregado = (producto) => {
-        let cantidadSolicitada = obtenerCantidadActual(producto.id_producto);
-        
-        if (cantidadSolicitada === '' || cantidadSolicitada < 1) {
-            cantidadSolicitada = 1;
-            setCantidades({ ...cantidades, [producto.id_producto]: 1 });
-        }
+    let valor = parseInt(valorStr, 10);
+    if (Number.isNaN(valor)) valor = '';
+    if (valor !== '' && valor < 1) valor = 1;
+    if (valor !== '' && valor > stockMaximo) valor = stockMaximo;
 
-        const exito = agregarAlCarrito(producto, cantidadSolicitada);
-        
-        if (exito) {
-            setModalConfirmacion({ 
-                visible: true, 
-                productoNombre: producto.nombre, 
-                cantidad: cantidadSolicitada 
-            });
-            setCantidades({ ...cantidades, [producto.id_producto]: 1 });
-        }
-    };
+    setCantidades((prev) => ({ ...prev, [id]: valor }));
+  };
 
-    return (
-        <div>
-            {/* Cabecera de Opciones */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '20px' }}>
-                <h2 style={{ color: '#1A1A1A', margin: 0 }}>Nuestro Catálogo</h2>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <select value={criterioOrden} onChange={(e) => setCriterioOrden(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#D97A8C', color: '#333' }}>
-                        <option value="alfabetico">Orden Alfabético (A-Z)</option>
-                        <option value="precio_asc">Menor a Mayor Precio</option>
-                        <option value="precio_desc">Mayor a Menor Precio</option>
-                    </select>
-                </div>
-            </div>
+  const normalizarCantidadAlSalir = (id) => {
+    setCantidades((prev) => {
+      const actual = prev[id];
+      if (actual === '' || actual === undefined || Number(actual) < 1) {
+        return { ...prev, [id]: 1 };
+      }
+      return prev;
+    });
+  };
 
-            {/* Listado de Productos */}
-            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', minHeight: '400px' }}>
-                {productosPaginados.length > 0 ? (
-                    productosPaginados.map((producto) => (
-                        <div key={producto.id_producto} style={{ border: '1px solid #ddd', padding: '15px', borderRadius: '8px', width: '250px', position: 'relative', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div>
-                                <img 
-                                    src={producto.imagen_url} 
-                                    alt={producto.nombre} 
-                                    onClick={() => navegarA('detalle', producto.id_producto)}
-                                    style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '4px', marginBottom: '10px', cursor: 'pointer', transition: 'opacity 0.2s' }} 
-                                    onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
-                                    onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
-                                />
-                                <h3 style={{ margin: '10px 0', fontSize: '18px', color: '#1A1A1A' }}>{producto.nombre}</h3>
-                                <p style={{ fontSize: '14px', color: '#555', minHeight: '40px' }}>{producto.descripcion}</p>
-                            </div>
-                            <div>
-                                <p style={{ fontWeight: 'bold', fontSize: '18px', color: '#1A1A1A' }}>${producto.precio}</p>
-                                <p style={{ fontSize: '12px', fontWeight: 'bold', color: producto.stock > 0 ? '#28a745' : '#dc3545' }}>
-                                    {producto.stock > 0 ? `Stock disponible: ${producto.stock}` : 'Agotado'}
-                                </p>
-                                
-                                {producto.stock > 0 ? (
-                                    <div style={{ marginTop: '10px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', overflow: 'hidden' }}>
-                                            <button onClick={() => ajustarCantidad(producto.id_producto, -1, producto.stock)} style={{ padding: '8px 12px', backgroundColor: '#f8f9fa', border: 'none', borderRight: '1px solid #ddd', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>-</button>
-                                            <input 
-                                                type="number" 
-                                                value={obtenerCantidadActual(producto.id_producto)} 
-                                                onChange={(e) => manejarCambioManual(producto.id_producto, e.target.value, producto.stock)}
-                                                style={{ width: '100%', textAlign: 'center', border: 'none', outline: 'none', fontSize: '16px', WebkitAppearance: 'none', margin: 0, color: '#1A1A1A' }} 
-                                            />
-                                            <button onClick={() => ajustarCantidad(producto.id_producto, 1, producto.stock)} style={{ padding: '8px 12px', backgroundColor: '#f8f9fa', border: 'none', borderLeft: '1px solid #ddd', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', color: '#333' }}>+</button>
-                                        </div>
-                                        
-                                        <button onClick={() => procesarAgregado(producto)} style={{ width: '100%', padding: '10px', backgroundColor: '#D97A8C', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold', transition: 'background-color 0.3s' }}>
-                                            Agregar al Carrito
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button disabled style={{ width: '100%', padding: '10px', marginTop: '10px', backgroundColor: '#ccc', color: 'white', border: 'none', cursor: 'not-allowed', borderRadius: '4px', fontWeight: 'bold' }}>
-                                        Sin Inventario
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))
-                ) : (
-                    <div style={{ width: '100%', textAlign: 'center', padding: '40px', color: '#777', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-                        <p style={{ fontSize: '18px' }}>No se encontraron productos para tu búsqueda.</p>
-                    </div>
-                )}
-            </div>
+  const ajustarCantidad = (id, incremento, stockMaximo) => {
+    setCantidades((prev) => {
+      const actual = prev[id] === undefined || prev[id] === '' ? 1 : Number(prev[id]);
+      let nuevaCantidad = actual + incremento;
+      if (nuevaCantidad < 1) nuevaCantidad = 1;
+      if (nuevaCantidad > stockMaximo) nuevaCantidad = stockMaximo;
+      return { ...prev, [id]: nuevaCantidad };
+    });
+  };
 
-            {/* Paginación */}
-            {totalPaginas > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '30px', padding: '20px 0', borderTop: '1px solid #eee' }}>
-                    <button onClick={() => setPaginaActual(paginaActual - 1)} disabled={paginaActual === 1} style={{ padding: '8px 15px', border: '1px solid #ccc', backgroundColor: paginaActual === 1 ? '#f9f9f9' : '#fff', color: paginaActual === 1 ? '#aaa' : '#333', borderRadius: '4px', cursor: paginaActual === 1 ? 'not-allowed' : 'pointer' }}>Anterior</button>
-                    {Array.from({ length: totalPaginas }, (_, index) => (
-                        <button key={index + 1} onClick={() => setPaginaActual(index + 1)} style={{ padding: '8px 12px', border: '1px solid #ccc', backgroundColor: paginaActual === index + 1 ? '#1A1A1A' : '#fff', color: paginaActual === index + 1 ? 'white' : '#333', borderRadius: '4px', cursor: 'pointer', fontWeight: paginaActual === index + 1 ? 'bold' : 'normal' }}>{index + 1}</button>
-                    ))}
-                    <button onClick={() => setPaginaActual(paginaActual + 1)} disabled={paginaActual === totalPaginas} style={{ padding: '8px 15px', border: '1px solid #ccc', backgroundColor: paginaActual === totalPaginas ? '#f9f9f9' : '#fff', color: paginaActual === totalPaginas ? '#aaa' : '#333', borderRadius: '4px', cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer' }}>Siguiente</button>
-                </div>
-            )}
+  const procesarAgregado = (producto) => {
+    const valorActual = obtenerCantidadActual(producto.id_producto);
+    let cantidadSolicitada = valorActual === '' ? 1 : Number(valorActual);
+    if (!Number.isFinite(cantidadSolicitada) || cantidadSolicitada < 1) {
+      cantidadSolicitada = 1;
+    }
 
-            {/* VENTANA EMERGENTE (MODAL) DE CONFIRMACIÓN */}
-            {modalConfirmacion.visible && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        
-                        <div style={{ width: '50px', height: '50px', backgroundColor: '#d4edda', color: '#28a745', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px', margin: '0 auto 15px auto' }}>✓</div>
-                        
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1A1A1A' }}>¡Añadido con éxito!</h3>
-                        
-                        <p style={{ margin: '0 0 25px 0', color: '#555', fontSize: '15px' }}>
-                            Agregaste <strong>{modalConfirmacion.cantidad}</strong> unidad(es) de <strong>{modalConfirmacion.productoNombre}</strong> a tu carrito de compras.
-                        </p>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <button 
-                                onClick={() => navegarA('carrito')} 
-                                style={{ width: '100%', padding: '12px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                            >
-                                Ver mi carrito y Pagar
-                            </button>
-                            
-                            <button 
-                                onClick={() => setModalConfirmacion({ visible: false, productoNombre: '', cantidad: 0 })} 
-                                style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#1A1A1A', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                            >
-                                Seguir comprando
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+    const exito = agregarAlCarrito(producto, cantidadSolicitada);
+
+    if (exito) {
+      setModalConfirmacion({
+        visible: true,
+        productoNombre: producto.nombre,
+        cantidad: cantidadSolicitada,
+      });
+      setCantidades((prev) => ({ ...prev, [producto.id_producto]: 1 }));
+    } else {
+      setCantidades((prev) => ({ ...prev, [producto.id_producto]: cantidadSolicitada }));
+    }
+  };
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    window.scrollTo(0, 0);
+  };
+
+  return (
+    <section className="afro-catalog" aria-labelledby="catalogo-titulo">
+      <div className="afro-catalog-header">
+        <div className="afro-catalog-heading">
+          <h1 id="catalogo-titulo" className="afro-page-title">
+            Nuestro Catálogo
+          </h1>
+          {!cargando && !errorCarga ? (
+            <p className="afro-catalog-count">
+              {productosProcesados.length}{' '}
+              {productosProcesados.length === 1 ? 'producto disponible' : 'productos disponibles'}
+            </p>
+          ) : null}
         </div>
-    );
+
+        <div className="afro-catalog-sort">
+          <label htmlFor="orden-catalogo" className="afro-label">
+            Ordenar por
+          </label>
+          <select
+            id="orden-catalogo"
+            className="afro-select afro-catalog-select"
+            value={criterioOrden}
+            onChange={(e) => setCriterioOrden(e.target.value)}
+          >
+            <option value="alfabetico">Orden Alfabético (A-Z)</option>
+            <option value="precio_asc">Menor a Mayor Precio</option>
+            <option value="precio_desc">Mayor a Menor Precio</option>
+          </select>
+        </div>
+      </div>
+
+      {cargando ? (
+        <div className="afro-card afro-empty-state" role="status" aria-live="polite">
+          <h2>Cargando catálogo</h2>
+          <p>Estamos preparando los productos disponibles para ti...</p>
+        </div>
+      ) : errorCarga ? (
+        <div className="afro-card afro-empty-state">
+          <div className="afro-inline-error">
+            <div className="afro-toast afro-toast-error" role="alert">
+              {errorCarga}
+            </div>
+            <button type="button" className="afro-btn afro-btn-primary" onClick={obtenerDatos}>
+              Reintentar
+            </button>
+          </div>
+        </div>
+      ) : productosPaginados.length > 0 ? (
+        <div className="afro-product-grid">
+          {productosPaginados.map((producto) => {
+            const cantidadActual = obtenerCantidadActual(producto.id_producto);
+            const cantidadNumerica =
+              cantidadActual === '' ? 1 : Number(cantidadActual) || 1;
+
+            return (
+              <article key={producto.id_producto} className="afro-product-card">
+                <div>
+                  <button
+                    type="button"
+                    className="afro-product-media-btn"
+                    onClick={() => navegarA('detalle', producto.id_producto)}
+                    aria-label={`Ver detalles de ${producto.nombre}`}
+                  >
+                    <div className="afro-product-img-wrap">
+                      <img
+                        src={producto.imagen_url}
+                        alt={producto.nombre}
+                        loading="lazy"
+                        className="afro-product-img"
+                      />
+                    </div>
+                    <span className="afro-product-title">{producto.nombre}</span>
+                  </button>
+                  {producto.descripcion ? (
+                    <p className="afro-product-desc">{producto.descripcion}</p>
+                  ) : null}
+                </div>
+
+                <div className="afro-product-footer">
+                  <div className="afro-product-meta">
+                    <p className="afro-price afro-product-price">
+                      {formatearPrecio(producto.precio)}
+                    </p>
+                    <span
+                      className={`afro-badge ${
+                        producto.stock > 0 ? 'afro-badge-success' : 'afro-badge-danger'
+                      }`}
+                    >
+                      {producto.stock > 0 ? `Stock: ${producto.stock}` : 'Agotado'}
+                    </span>
+                  </div>
+
+                  {producto.stock > 0 ? (
+                    <>
+                      <div className="afro-qty-control afro-qty-control--full">
+                        <button
+                          type="button"
+                          className="afro-qty-btn"
+                          onClick={() => ajustarCantidad(producto.id_producto, -1, producto.stock)}
+                          aria-label={`Disminuir cantidad de ${producto.nombre}`}
+                          disabled={cantidadNumerica <= 1}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          className="afro-qty-input"
+                          min={1}
+                          max={producto.stock}
+                          inputMode="numeric"
+                          value={cantidadActual}
+                          onChange={(e) =>
+                            manejarCambioManual(
+                              producto.id_producto,
+                              e.target.value,
+                              producto.stock
+                            )
+                          }
+                          onBlur={() => normalizarCantidadAlSalir(producto.id_producto)}
+                          aria-label={`Cantidad de ${producto.nombre}`}
+                        />
+                        <button
+                          type="button"
+                          className="afro-qty-btn"
+                          onClick={() => ajustarCantidad(producto.id_producto, 1, producto.stock)}
+                          aria-label={`Aumentar cantidad de ${producto.nombre}`}
+                          disabled={cantidadNumerica >= producto.stock}
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="afro-btn afro-btn-primary afro-btn-full"
+                        onClick={() => procesarAgregado(producto)}
+                      >
+                        Agregar al Carrito
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="afro-btn afro-btn-outline afro-btn-full"
+                    >
+                      Sin Inventario
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="afro-card afro-empty-state">
+          <h2>Sin coincidencias</h2>
+          <p>
+            {terminoBusqueda
+              ? `No se encontraron productos para "${terminoBusqueda}".`
+              : 'No hay productos disponibles en el catálogo en este momento.'}
+          </p>
+        </div>
+      )}
+
+      {!cargando && !errorCarga && totalPaginas > 1 ? (
+        <nav className="afro-pagination" aria-label="Paginación del catálogo">
+          <button
+            type="button"
+            className="afro-btn afro-btn-outline afro-page-btn"
+            onClick={() => cambiarPagina(paginaActual - 1)}
+            disabled={paginaActual === 1}
+          >
+            Anterior
+          </button>
+
+          {Array.from({ length: totalPaginas }, (_, index) => {
+            const numeroPagina = index + 1;
+            const esActual = paginaActual === numeroPagina;
+            return (
+              <button
+                key={numeroPagina}
+                type="button"
+                className={`afro-btn afro-page-btn ${
+                  esActual ? 'afro-btn-dark' : 'afro-btn-outline'
+                }`}
+                onClick={() => cambiarPagina(numeroPagina)}
+                aria-label={`Página ${numeroPagina}`}
+                aria-current={esActual ? 'page' : undefined}
+              >
+                {numeroPagina}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            className="afro-btn afro-btn-outline afro-page-btn"
+            onClick={() => cambiarPagina(paginaActual + 1)}
+            disabled={paginaActual === totalPaginas}
+          >
+            Siguiente
+          </button>
+        </nav>
+      ) : null}
+
+      {modalConfirmacion.visible ? (
+        <div className="afro-modal-backdrop" onClick={cerrarModalConfirmacion}>
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalogo-modal-title"
+            aria-describedby="catalogo-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="afro-modal-icon-success" aria-hidden="true">
+              ✓
+            </div>
+            <h2 id="catalogo-modal-title" className="afro-modal-title">
+              ¡Añadido con éxito!
+            </h2>
+            <p id="catalogo-modal-desc" className="afro-modal-body">
+              Agregaste <strong>{modalConfirmacion.cantidad}</strong> unidad(es) de{' '}
+              <strong>{modalConfirmacion.productoNombre}</strong> a tu carrito de compras.
+            </p>
+            <div className="afro-modal-actions afro-modal-actions--stack">
+              <button
+                type="button"
+                className="afro-btn afro-btn-primary"
+                onClick={() => navegarA('carrito')}
+                autoFocus
+              >
+                Ver mi carrito y Pagar
+              </button>
+              <button
+                type="button"
+                className="afro-btn afro-btn-outline"
+                onClick={cerrarModalConfirmacion}
+              >
+                Seguir comprando
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 export default Catalogo;

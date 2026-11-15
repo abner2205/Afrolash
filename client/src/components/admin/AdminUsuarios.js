@@ -1,162 +1,481 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
+const ESTADO_INICIAL_EMPLEADO = {
+  nombre_completo: '',
+  correo: '',
+  telefono: '',
+  direccion: '',
+};
+
+const ROLES_BADGE = {
+  admin: { clase: 'afro-badge afro-badge-dark', etiqueta: 'Admin' },
+  empleado: { clase: 'afro-badge afro-badge-warning', etiqueta: 'Empleado' },
+  cliente: { clase: 'afro-badge', etiqueta: 'Cliente' },
+};
+
+const leerTokenSeguro = () => {
+  try {
+    return localStorage.getItem('token');
+  } catch (error) {
+    return null;
+  }
+};
+
+const obtenerConfigHeaders = () => ({
+  headers: { Authorization: `Bearer ${leerTokenSeguro()}` },
+});
+
+const obtenerBadgeRol = (rol) => {
+  const clave = (rol || 'cliente').toLowerCase();
+  if (ROLES_BADGE[clave]) {
+    return ROLES_BADGE[clave];
+  }
+  return {
+    clase: 'afro-badge',
+    etiqueta: rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : 'Cliente',
+  };
+};
+
 const AdminUsuarios = () => {
-    const [usuarios, setUsuarios] = useState([]);
-    const [mostrarFormulario, setMostrarFormulario] = useState(false);
-    const [formData, setFormData] = useState({
-        nombre_completo: '', correo: '', telefono: '', direccion: ''
-    });
-    const [modalMensaje, setModalMensaje] = useState({ visible: false, texto: '', tipo: 'info' });
+  const [usuarios, setUsuarios] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [formData, setFormData] = useState(ESTADO_INICIAL_EMPLEADO);
+  const [enviando, setEnviando] = useState(false);
+  const [confirmacionEliminar, setConfirmacionEliminar] = useState(null);
+  const [procesandoRevocacion, setProcesandoRevocacion] = useState(false);
+  const [modalMensaje, setModalMensaje] = useState({ visible: false, texto: '', tipo: 'info' });
 
-    const token = localStorage.getItem('token');
-    const configHeaders = { headers: { 'Authorization': `Bearer ${token}` } };
+  const montadoRef = useRef(true);
 
-    useEffect(() => {
-        cargarUsuarios();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
 
-    const cargarUsuarios = async () => {
-        try {
-            const respuesta = await axios.get('http://localhost:5000/api/usuarios/admin/todos', configHeaders);
-            setUsuarios(respuesta.data);
-        } catch (error) {
-            console.error('Error al cargar usuarios:', error);
-            setModalMensaje({ visible: true, texto: 'Error al obtener la lista de usuarios del sistema.', tipo: 'error' });
+  const cargarUsuarios = useCallback(async () => {
+    setCargando(true);
+    setErrorCarga('');
+    try {
+      const respuesta = await axios.get(
+        'http://localhost:5000/api/usuarios/admin/todos',
+        obtenerConfigHeaders()
+      );
+      if (montadoRef.current) {
+        setUsuarios(Array.isArray(respuesta.data) ? respuesta.data : []);
+      }
+    } catch (error) {
+      console.error('Error al cargar usuarios:', error);
+      if (montadoRef.current) {
+        setErrorCarga('Error al obtener la lista de usuarios del sistema.');
+      }
+    } finally {
+      if (montadoRef.current) {
+        setCargando(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarUsuarios();
+  }, [cargarUsuarios]);
+
+  useEffect(() => {
+    if (!modalMensaje.visible && !confirmacionEliminar) return undefined;
+
+    const manejarEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        if (confirmacionEliminar && !procesandoRevocacion) {
+          setConfirmacionEliminar(null);
+        } else if (modalMensaje.visible) {
+          setModalMensaje({ visible: false, texto: '', tipo: 'info' });
         }
+      }
     };
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+    document.addEventListener('keydown', manejarEscape);
+    return () => {
+      document.removeEventListener('keydown', manejarEscape);
     };
+  }, [modalMensaje.visible, confirmacionEliminar, procesandoRevocacion]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            await axios.post('http://localhost:5000/api/usuarios/admin/empleado', formData, configHeaders);
-            
-            setModalMensaje({ visible: true, texto: 'Empleado creado exitosamente. Se ha enviado un correo con sus credenciales de acceso.', tipo: 'exito' });
-            setMostrarFormulario(false);
-            setFormData({ nombre_completo: '', correo: '', telefono: '', direccion: '' });
-            cargarUsuarios();
-        } catch (error) {
-            setModalMensaje({ visible: true, texto: error.response?.data?.mensaje || 'Error al registrar al empleado.', tipo: 'error' });
-        }
-    };
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-    const eliminarEmpleado = async (id, nombre) => {
-        const confirmar = window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el acceso del empleado ${nombre}?`);
-        if (!confirmar) return;
+  const cancelarFormulario = () => {
+    setMostrarFormulario(false);
+    setFormData(ESTADO_INICIAL_EMPLEADO);
+  };
 
-        try {
-            await axios.delete(`http://localhost:5000/api/usuarios/admin/empleado/${id}`, configHeaders);
-            setModalMensaje({ visible: true, texto: 'Cuenta de empleado eliminada correctamente.', tipo: 'exito' });
-            cargarUsuarios();
-        } catch (error) {
-            setModalMensaje({ visible: true, texto: error.response?.data?.mensaje || 'Error al intentar eliminar la cuenta.', tipo: 'error' });
-        }
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (enviando) return;
 
-    return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ddd', paddingBottom: '10px', marginBottom: '20px' }}>
-                <h2 style={{ margin: 0 }}>Gestión de Personal y Usuarios</h2>
-                {!mostrarFormulario && (
-                    <button onClick={() => setMostrarFormulario(true)} style={{ padding: '10px 20px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        + Registrar Nuevo Empleado
-                    </button>
-                )}
+    setEnviando(true);
+    try {
+      await axios.post(
+        'http://localhost:5000/api/usuarios/admin/empleado',
+        formData,
+        obtenerConfigHeaders()
+      );
+
+      if (montadoRef.current) {
+        setModalMensaje({
+          visible: true,
+          texto:
+            'Empleado creado exitosamente. Se ha enviado un correo con sus credenciales de acceso.',
+          tipo: 'exito',
+        });
+        cancelarFormulario();
+      }
+      await cargarUsuarios();
+    } catch (error) {
+      if (montadoRef.current) {
+        setModalMensaje({
+          visible: true,
+          texto: error.response?.data?.mensaje || 'Error al registrar al empleado.',
+          tipo: 'error',
+        });
+      }
+    } finally {
+      if (montadoRef.current) {
+        setEnviando(false);
+      }
+    }
+  };
+
+  const confirmarRevocacion = async () => {
+    if (!confirmacionEliminar || procesandoRevocacion) return;
+
+    setProcesandoRevocacion(true);
+    try {
+      await axios.delete(
+        `http://localhost:5000/api/usuarios/admin/empleado/${confirmacionEliminar.id}`,
+        obtenerConfigHeaders()
+      );
+      if (montadoRef.current) {
+        setConfirmacionEliminar(null);
+        setModalMensaje({
+          visible: true,
+          texto: 'Cuenta de empleado eliminada correctamente.',
+          tipo: 'exito',
+        });
+      }
+      await cargarUsuarios();
+    } catch (error) {
+      if (montadoRef.current) {
+        setConfirmacionEliminar(null);
+        setModalMensaje({
+          visible: true,
+          texto: error.response?.data?.mensaje || 'Error al intentar eliminar la cuenta.',
+          tipo: 'error',
+        });
+      }
+    } finally {
+      if (montadoRef.current) {
+        setProcesandoRevocacion(false);
+      }
+    }
+  };
+
+  const cerrarModalConfirmacion = () => {
+    if (!procesandoRevocacion) {
+      setConfirmacionEliminar(null);
+    }
+  };
+
+  const cerrarModalMensaje = () => {
+    setModalMensaje({ visible: false, texto: '', tipo: 'info' });
+  };
+
+  return (
+    <section className="afro-admin-page" aria-labelledby="admin-usuarios-titulo">
+      <div className="afro-admin-header">
+        <h1 id="admin-usuarios-titulo" className="afro-page-title">
+          Gestión de Personal y Usuarios
+        </h1>
+
+        {!mostrarFormulario ? (
+          <div className="afro-admin-actions">
+            <button
+              type="button"
+              className="afro-btn afro-btn-dark"
+              onClick={() => setMostrarFormulario(true)}
+            >
+              + Registrar Nuevo Empleado
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {mostrarFormulario ? (
+        <div className="afro-card afro-admin-form-card">
+          <h2 className="afro-admin-form-title">Alta de Nuevo Empleado</h2>
+          <p className="afro-admin-form-intro">
+            El sistema generará una contraseña segura y la enviará automáticamente al correo
+            proporcionado.
+          </p>
+
+          <form onSubmit={handleSubmit} className="afro-form-stack">
+            <div className="afro-field">
+              <label htmlFor="emp-nombre" className="afro-label">
+                Nombre Completo
+              </label>
+              <input
+                id="emp-nombre"
+                type="text"
+                name="nombre_completo"
+                className="afro-input"
+                placeholder="Nombre completo del empleado"
+                value={formData.nombre_completo}
+                onChange={handleChange}
+                autoComplete="name"
+                required
+              />
             </div>
 
-            {mostrarFormulario && (
-                <div style={{ padding: '30px', border: '1px solid #1A1A1A', borderRadius: '8px', marginBottom: '40px', backgroundColor: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                    <h2 style={{ textAlign: 'center', marginTop: 0, color: '#1A1A1A', marginBottom: '25px' }}>Alta de Nuevo Empleado</h2>
-                    <p style={{ textAlign: 'center', color: '#666', marginBottom: '20px' }}>El sistema generará una contraseña segura y la enviará automáticamente al correo proporcionado.</p>
-                    
-                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <input type="text" name="nombre_completo" placeholder="Nombre Completo del Empleado" value={formData.nombre_completo} onChange={handleChange} required style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#1A1A1A' }} />
-                        <input type="email" name="correo" placeholder="Correo Electrónico Válido" value={formData.correo} onChange={handleChange} required style={{ padding: '12px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#1A1A1A' }} />
-                        
-                        <div style={{ display: 'flex', gap: '15px' }}>
-                            <input type="text" name="telefono" placeholder="Teléfono de Contacto" value={formData.telefono} onChange={handleChange} required style={{ padding: '12px', flex: 1, borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#1A1A1A' }} />
-                        </div>
-                        
-                        <textarea name="direccion" placeholder="Dirección de Residencia (Opcional)" value={formData.direccion} onChange={handleChange} style={{ padding: '12px', minHeight: '60px', borderRadius: '4px', border: '1px solid #ccc', outlineColor: '#1A1A1A' }} />
+            <div className="afro-admin-form-grid">
+              <div className="afro-field">
+                <label htmlFor="emp-correo" className="afro-label">
+                  Correo Electrónico
+                </label>
+                <input
+                  id="emp-correo"
+                  type="email"
+                  name="correo"
+                  className="afro-input"
+                  placeholder="empleado@afrolash.com"
+                  value={formData.correo}
+                  onChange={handleChange}
+                  autoComplete="email"
+                  required
+                />
+              </div>
 
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                            <button type="submit" style={{ flex: 1, padding: '15px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-                                Generar Credenciales y Registrar
-                            </button>
-                            <button type="button" onClick={() => { setMostrarFormulario(false); setFormData({ nombre_completo: '', correo: '', telefono: '', direccion: '' }); }} style={{ padding: '15px 30px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                Cancelar
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
+              <div className="afro-field">
+                <label htmlFor="emp-telefono" className="afro-label">
+                  Teléfono de Contacto
+                </label>
+                <input
+                  id="emp-telefono"
+                  type="tel"
+                  name="telefono"
+                  className="afro-input afro-tabular"
+                  placeholder="Número de teléfono"
+                  value={formData.telefono}
+                  onChange={handleChange}
+                  autoComplete="tel"
+                  required
+                />
+              </div>
+            </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', backgroundColor: '#fff' }}>
-                <thead>
-                    <tr style={{ backgroundColor: '#1A1A1A', color: 'white' }}>
-                        <th style={{ padding: '12px', border: '1px solid #ddd' }}>ID</th>
-                        <th style={{ padding: '12px', border: '1px solid #ddd' }}>Nombre</th>
-                        <th style={{ padding: '12px', border: '1px solid #ddd' }}>Correo</th>
-                        <th style={{ padding: '12px', border: '1px solid #ddd' }}>Rol</th>
-                        <th style={{ padding: '12px', border: '1px solid #ddd' }}>Teléfono</th>
-                        <th style={{ padding: '12px', border: '1px solid #ddd' }}>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {usuarios.map(usuario => (
-                        <tr key={usuario.id_usuario} style={{ textAlign: 'center' }}>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>{usuario.id_usuario}</td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd', fontWeight: 'bold' }}>{usuario.nombre_completo}</td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>{usuario.correo}</td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <span style={{ 
-                                    padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold',
-                                    backgroundColor: usuario.rol === 'admin' ? '#1A1A1A' : usuario.rol === 'empleado' ? '#CFA144' : '#e9ecef',
-                                    color: usuario.rol === 'admin' || usuario.rol === 'empleado' ? 'white' : '#333'
-                                }}>
-                                    {usuario.rol.toUpperCase()}
-                                </span>
-                            </td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>{usuario.telefono || 'N/A'}</td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                {usuario.rol === 'empleado' ? (
-                                    <button onClick={() => eliminarEmpleado(usuario.id_usuario, usuario.nombre_completo)} style={{ padding: '6px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>
-                                        Revocar Acceso
-                                    </button>
-                                ) : (
-                                    <span style={{ color: '#aaa', fontSize: '12px' }}>Protegido</span>
-                                )}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <div className="afro-field">
+              <label htmlFor="emp-direccion" className="afro-label">
+                Dirección de Residencia (Opcional)
+              </label>
+              <textarea
+                id="emp-direccion"
+                name="direccion"
+                className="afro-textarea"
+                placeholder="Dirección de residencia..."
+                value={formData.direccion}
+                onChange={handleChange}
+                autoComplete="street-address"
+              />
+            </div>
 
-            {modalMensaje.visible && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        <h3 style={{ margin: '0 0 10px 0', color: modalMensaje.tipo === 'exito' ? '#28a745' : '#dc3545', fontSize: '20px' }}>
-                            {modalMensaje.tipo === 'exito' ? 'Operacion Exitosa' : 'Atencion Requerida'}
-                        </h3>
-                        <p style={{ margin: '0 0 25px 0', color: '#555', fontSize: '15px' }}>
-                            {modalMensaje.texto}
-                        </p>
-                        <button 
-                            onClick={() => setModalMensaje({ visible: false, texto: '', tipo: 'info' })} 
-                            style={{ width: '100%', padding: '12px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                        >
-                            Entendido
-                        </button>
-                    </div>
-                </div>
-            )}
+            <div className="afro-admin-form-actions">
+              <button
+                type="submit"
+                disabled={enviando}
+                className="afro-btn afro-btn-success afro-admin-form-submit"
+              >
+                {enviando ? 'Registrando empleado...' : 'Generar Credenciales y Registrar'}
+              </button>
+              <button
+                type="button"
+                disabled={enviando}
+                className="afro-btn afro-btn-outline"
+                onClick={cancelarFormulario}
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
-    );
+      ) : null}
+
+      {cargando ? (
+        <div className="afro-card afro-empty-state" role="status" aria-live="polite">
+          <p>Cargando lista de usuarios...</p>
+        </div>
+      ) : errorCarga && usuarios.length === 0 ? (
+        <div className="afro-card afro-empty-state afro-inline-error" role="alert">
+          <h2>No se pudo cargar la lista de usuarios</h2>
+          <p>{errorCarga}</p>
+          <button
+            type="button"
+            className="afro-btn afro-btn-dark"
+            onClick={cargarUsuarios}
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : usuarios.length === 0 ? (
+        <div className="afro-card afro-empty-state">
+          <h2>Sin usuarios registrados</h2>
+          <p>No se encontraron cuentas de usuario en el sistema.</p>
+        </div>
+      ) : (
+        <div className="afro-table-wrapper">
+          <table className="afro-table">
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Correo</th>
+                <th scope="col">Rol</th>
+                <th scope="col">Teléfono</th>
+                <th scope="col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usuarios.map((usuario) => {
+                const badgeRol = obtenerBadgeRol(usuario.rol);
+                return (
+                  <tr key={usuario.id_usuario}>
+                    <td className="afro-tabular">{usuario.id_usuario}</td>
+                    <td className="afro-table-name">{usuario.nombre_completo}</td>
+                    <td>{usuario.correo}</td>
+                    <td>
+                      <span className={badgeRol.clase}>{badgeRol.etiqueta}</span>
+                    </td>
+                    <td className="afro-tabular">{usuario.telefono || 'N/A'}</td>
+                    <td>
+                      <div className="afro-table-actions">
+                        {usuario.rol === 'empleado' ? (
+                          <button
+                            type="button"
+                            className="afro-btn afro-btn-danger afro-btn-sm"
+                            onClick={() =>
+                              setConfirmacionEliminar({
+                                id: usuario.id_usuario,
+                                nombre: usuario.nombre_completo,
+                              })
+                            }
+                          >
+                            Revocar Acceso
+                          </button>
+                        ) : (
+                          <span className="afro-badge">Protegido</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {confirmacionEliminar ? (
+        <div className="afro-modal-backdrop" onClick={cerrarModalConfirmacion}>
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-usuarios-confirm-title"
+            aria-describedby="admin-usuarios-confirm-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="afro-modal-icon-danger" aria-hidden="true">
+              !
+            </div>
+            <h2 id="admin-usuarios-confirm-title" className="afro-modal-title">
+              Revocar Acceso de Empleado
+            </h2>
+            <p id="admin-usuarios-confirm-desc" className="afro-modal-body">
+              ¿Estás seguro de que deseas eliminar permanentemente el acceso del empleado{' '}
+              <strong>{confirmacionEliminar.nombre}</strong>? Esta acción no se puede deshacer.
+            </p>
+            <div className="afro-modal-actions">
+              <button
+                type="button"
+                className="afro-btn afro-btn-outline"
+                disabled={procesandoRevocacion}
+                onClick={cerrarModalConfirmacion}
+                autoFocus
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="afro-btn afro-btn-danger"
+                disabled={procesandoRevocacion}
+                onClick={confirmarRevocacion}
+              >
+                {procesandoRevocacion ? 'Revocando acceso...' : 'Sí, revocar acceso'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {modalMensaje.visible ? (
+        <div className="afro-modal-backdrop" onClick={cerrarModalMensaje}>
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-usuarios-modal-title"
+            aria-describedby="admin-usuarios-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className={
+                modalMensaje.tipo === 'exito'
+                  ? 'afro-modal-icon-success'
+                  : modalMensaje.tipo === 'info'
+                    ? 'afro-modal-icon-info'
+                    : 'afro-modal-icon-danger'
+              }
+              aria-hidden="true"
+            >
+              {modalMensaje.tipo === 'exito' ? '✓' : modalMensaje.tipo === 'info' ? 'i' : '!'}
+            </div>
+            <h2 id="admin-usuarios-modal-title" className="afro-modal-title">
+              {modalMensaje.tipo === 'exito'
+                ? 'Operación Exitosa'
+                : modalMensaje.tipo === 'info'
+                  ? 'Información'
+                  : 'Atención Requerida'}
+            </h2>
+            <p id="admin-usuarios-modal-desc" className="afro-modal-body">
+              {modalMensaje.texto}
+            </p>
+            <div className="afro-modal-actions">
+              <button
+                type="button"
+                className="afro-btn afro-btn-dark afro-btn-full"
+                onClick={cerrarModalMensaje}
+                autoFocus
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 export default AdminUsuarios;

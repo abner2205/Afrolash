@@ -1,158 +1,251 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
+const leerUsuarioSeguro = () => {
+  try {
+    const raw = localStorage.getItem('usuario');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const leerTokenSeguro = () => {
+  try {
+    return localStorage.getItem('token');
+  } catch (error) {
+    return null;
+  }
+};
+
 const Perfil = () => {
-    const [formData, setFormData] = useState({
-        nombre_completo: '',
-        correo: '',
-        direccion: '',
-        telefono: ''
-    });
-    
-    // NUEVO: Estado centralizado para el Modal
-    const [modalMensaje, setModalMensaje] = useState({ visible: false, texto: '', tipo: 'info' });
-    const [cargando, setCargando] = useState(false);
+  const [formData, setFormData] = useState({
+    nombre_completo: '',
+    correo: '',
+    direccion: '',
+    telefono: '',
+  });
 
-    useEffect(() => {
-        const usuarioGuardado = localStorage.getItem('usuario');
-        if (usuarioGuardado) {
-            const usuario = JSON.parse(usuarioGuardado);
-            
-            setFormData({
-                nombre_completo: usuario.nombre_completo || usuario.nombre || '',
-                correo: usuario.correo || usuario.email || '', 
-                direccion: usuario.direccion || '',
-                telefono: usuario.telefono || ''
-            });
-        }
-    }, []);
+  const [modalMensaje, setModalMensaje] = useState({
+    visible: false,
+    texto: '',
+    tipo: 'info',
+  });
+  const [cargando, setCargando] = useState(false);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+  const montadoRef = useRef(true);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    const usuario = leerUsuarioSeguro();
+    if (usuario) {
+      setFormData({
+        nombre_completo: usuario.nombre_completo || usuario.nombre || '',
+        correo: usuario.correo || usuario.email || '',
+        direccion: usuario.direccion || '',
+        telefono: usuario.telefono || '',
+      });
+    }
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!modalMensaje.visible) return undefined;
+
+    const manejarEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        setModalMensaje({ visible: false, texto: '', tipo: 'info' });
+      }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setCargando(true);
-
-        try {
-            const token = localStorage.getItem('token');
-            // Ruta corregida para coincidir con authRoutes.js
-            await axios.put('http://localhost:5000/api/auth/perfil', 
-                {
-                    nombre_completo: formData.nombre_completo,
-                    direccion: formData.direccion,
-                    telefono: formData.telefono
-                },
-                { headers: { 'Authorization': `Bearer ${token}` } }
-            );
-
-            const usuarioGuardado = JSON.parse(localStorage.getItem('usuario'));
-            const usuarioActualizado = { 
-                ...usuarioGuardado, 
-                nombre_completo: formData.nombre_completo,
-                direccion: formData.direccion,
-                telefono: formData.telefono
-            };
-            localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
-
-            setModalMensaje({ visible: true, texto: 'Tus datos del perfil han sido actualizados correctamente.', tipo: 'exito' });
-        } catch (error) {
-            console.error('Error actualizando perfil:', error);
-            setModalMensaje({ visible: true, texto: 'No se pudo actualizar la información. Verifica tu conexión e intenta de nuevo.', tipo: 'error' });
-        } finally {
-            setCargando(false);
-        }
+    document.addEventListener('keydown', manejarEscape);
+    return () => {
+      document.removeEventListener('keydown', manejarEscape);
     };
+  }, [modalMensaje.visible]);
 
-    return (
-        <div style={{ maxWidth: '600px', margin: '40px auto', padding: '30px', border: '1px solid #F7CDD5', borderRadius: '8px', backgroundColor: '#fff', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ marginTop: 0, borderBottom: '2px solid #F7CDD5', paddingBottom: '15px', color: '#1A1A1A' }}>Mi Perfil</h2>
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>Correo Electrónico (No editable):</label>
-                    <input 
-                        type="email" 
-                        value={formData.correo} 
-                        disabled 
-                        style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', backgroundColor: '#e9ecef', color: '#6c757d', boxSizing: 'border-box' }} 
-                    />
-                </div>
-                <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>Nombre Completo:</label>
-                    <input 
-                        type="text" 
-                        name="nombre_completo" 
-                        value={formData.nombre_completo} 
-                        onChange={handleChange} 
-                        required 
-                        style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box', outlineColor: '#D97A8C' }} 
-                    />
-                </div>
-                <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>Teléfono de Contacto:</label>
-                    <input 
-                        type="text" 
-                        name="telefono" 
-                        value={formData.telefono} 
-                        onChange={handleChange} 
-                        placeholder="Ej: 0414-1234567" 
-                        style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box', outlineColor: '#D97A8C' }} 
-                    />
-                </div>
-                <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>Dirección de Entrega Predeterminada:</label>
-                    <textarea 
-                        name="direccion" 
-                        value={formData.direccion} 
-                        onChange={handleChange} 
-                        placeholder="Escribe tu dirección completa..." 
-                        style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', minHeight: '100px', boxSizing: 'border-box', outlineColor: '#D97A8C' }} 
-                    />
-                </div>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (cargando) return;
 
-                <button 
-                    type="submit" 
-                    disabled={cargando}
-                    style={{ marginTop: '10px', padding: '15px 20px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: cargando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px', transition: 'background-color 0.3s' }}
-                >
-                    {cargando ? 'Guardando cambios...' : 'Guardar Cambios'}
-                </button>
-            </form>
+    setCargando(true);
 
-            {/* MODAL DE CONFIRMACIÓN / ERROR */}
-            {modalMensaje.visible && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        
-                        <div style={{ 
-                            width: '50px', height: '50px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px', margin: '0 auto 15px auto', fontWeight: 'bold',
-                            backgroundColor: modalMensaje.tipo === 'exito' ? '#d4edda' : '#f8d7da',
-                            color: modalMensaje.tipo === 'exito' ? '#28a745' : '#dc3545'
-                        }}>
-                            {modalMensaje.tipo === 'exito' ? '✓' : '!'}
-                        </div>
-                        
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1A1A1A', fontSize: '20px' }}>
-                            {modalMensaje.tipo === 'exito' ? 'Operación Exitosa' : 'Atención Requerida'}
-                        </h3>
-                        
-                        <p style={{ margin: '0 0 25px 0', color: '#555', fontSize: '15px' }}>
-                            {modalMensaje.texto}
-                        </p>
-                        
-                        <button 
-                            onClick={() => setModalMensaje({ visible: false, texto: '', tipo: 'info' })} 
-                            style={{ width: '100%', padding: '12px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                        >
-                            Entendido
-                        </button>
-                    </div>
-                </div>
-            )}
+    try {
+      const token = leerTokenSeguro();
+      await axios.put(
+        'http://localhost:5000/api/auth/perfil',
+        {
+          nombre_completo: formData.nombre_completo,
+          direccion: formData.direccion,
+          telefono: formData.telefono,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      try {
+        const usuarioGuardado = leerUsuarioSeguro() || {};
+        const usuarioActualizado = {
+          ...usuarioGuardado,
+          nombre_completo: formData.nombre_completo,
+          direccion: formData.direccion,
+          telefono: formData.telefono,
+        };
+        localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+      } catch (storageError) {
+        console.error('No se pudo actualizar el usuario en almacenamiento local:', storageError);
+      }
+
+      if (montadoRef.current) {
+        setModalMensaje({
+          visible: true,
+          texto: 'Tus datos del perfil han sido actualizados correctamente.',
+          tipo: 'exito',
+        });
+      }
+    } catch (error) {
+      console.error('Error actualizando perfil:', error);
+      if (montadoRef.current) {
+        setModalMensaje({
+          visible: true,
+          texto: 'No se pudo actualizar la información. Verifica tu conexión e intenta de nuevo.',
+          tipo: 'error',
+        });
+      }
+    } finally {
+      if (montadoRef.current) {
+        setCargando(false);
+      }
+    }
+  };
+
+  const cerrarModal = () => {
+    setModalMensaje({ visible: false, texto: '', tipo: 'info' });
+  };
+
+  return (
+    <section className="afro-form-card afro-form-card--profile" aria-labelledby="perfil-titulo">
+      <h1 id="perfil-titulo" className="afro-form-heading">
+        Mi Perfil
+      </h1>
+
+      <form onSubmit={handleSubmit} className="afro-form-stack">
+        <div className="afro-field">
+          <label htmlFor="perfil-correo" className="afro-label">
+            Correo Electrónico (No editable)
+          </label>
+          <input
+            id="perfil-correo"
+            type="email"
+            name="correo"
+            className="afro-input afro-input--readonly"
+            value={formData.correo}
+            disabled
+            autoComplete="email"
+          />
         </div>
-    );
+
+        <div className="afro-field">
+          <label htmlFor="perfil-nombre" className="afro-label">
+            Nombre Completo
+          </label>
+          <input
+            id="perfil-nombre"
+            type="text"
+            name="nombre_completo"
+            className="afro-input"
+            value={formData.nombre_completo}
+            onChange={handleChange}
+            required
+            autoComplete="name"
+          />
+        </div>
+
+        <div className="afro-field">
+          <label htmlFor="perfil-telefono" className="afro-label">
+            Teléfono de Contacto
+          </label>
+          <input
+            id="perfil-telefono"
+            type="tel"
+            name="telefono"
+            className="afro-input"
+            value={formData.telefono}
+            onChange={handleChange}
+            placeholder="Ej: 0414-1234567"
+            autoComplete="tel"
+          />
+        </div>
+
+        <div className="afro-field">
+          <label htmlFor="perfil-direccion" className="afro-label">
+            Dirección de Entrega Predeterminada
+          </label>
+          <textarea
+            id="perfil-direccion"
+            name="direccion"
+            className="afro-textarea"
+            value={formData.direccion}
+            onChange={handleChange}
+            placeholder="Escribe tu dirección completa..."
+            autoComplete="street-address"
+          />
+        </div>
+
+        <button type="submit" disabled={cargando} className="afro-btn afro-btn-primary afro-btn-full">
+          {cargando ? 'Guardando cambios...' : 'Guardar Cambios'}
+        </button>
+      </form>
+
+      {modalMensaje.visible ? (
+        <div className="afro-modal-backdrop" onClick={cerrarModal}>
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="perfil-modal-title"
+            aria-describedby="perfil-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className={
+                modalMensaje.tipo === 'exito'
+                  ? 'afro-modal-icon-success'
+                  : 'afro-modal-icon-danger'
+              }
+              aria-hidden="true"
+            >
+              {modalMensaje.tipo === 'exito' ? '✓' : '!'}
+            </div>
+            <h2 id="perfil-modal-title" className="afro-modal-title">
+              {modalMensaje.tipo === 'exito' ? 'Operación Exitosa' : 'Atención Requerida'}
+            </h2>
+            <p id="perfil-modal-desc" className="afro-modal-body">
+              {modalMensaje.texto}
+            </p>
+            <div className="afro-modal-actions">
+              <button
+                type="button"
+                className="afro-btn afro-btn-dark afro-btn-full"
+                onClick={cerrarModal}
+                autoFocus
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 export default Perfil;

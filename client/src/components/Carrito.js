@@ -1,256 +1,579 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import FormularioPago from './FormularioPago';
 
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+const stripeKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
+
+const PASOS_CHECKOUT = [
+  { numero: 1, etiqueta: 'Resumen' },
+  { numero: 2, etiqueta: 'Envío' },
+  { numero: 3, etiqueta: 'Pago' },
+  { numero: 4, etiqueta: 'Confirmación' },
+];
+
+const formatearPrecio = (monto) => {
+  const numero = Number(monto);
+  return Number.isFinite(numero) ? `$${numero.toFixed(2)}` : '$0.00';
+};
+
+const leerStorageTextoSeguro = (clave) => {
+  try {
+    return localStorage.getItem(clave);
+  } catch (error) {
+    return null;
+  }
+};
+
+const leerUsuarioSeguro = () => {
+  try {
+    const raw = localStorage.getItem('usuario');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const guardarUsuarioSeguro = (usuario) => {
+  try {
+    localStorage.setItem('usuario', JSON.stringify(usuario));
+  } catch (error) {
+    // Ignora fallos de almacenamiento en navegadores restringidos
+  }
+};
 
 const Carrito = ({ carrito, eliminarDelCarrito, volver, navegarA, vaciarCarrito }) => {
-    const [pasoCheckout, setPasoCheckout] = useState(1);
-    const [clientSecret, setClientSecret] = useState('');
-    const [facturaUrl, setFacturaUrl] = useState(null); 
-    
-    // NUEVO ESTADO PARA EL MODAL DE LOGIN
-    const [modalLoginVisible, setModalLoginVisible] = useState(false);
-    
-    const [datosEnvio, setDatosEnvio] = useState({
-        direccion: '',
-        telefono: ''
-    });
+  const itemsCarrito = useMemo(() => (Array.isArray(carrito) ? carrito : []), [carrito]);
 
-    const total = carrito.reduce((acumulador, producto) => acumulador + (parseFloat(producto.precio) * producto.cantidad), 0);
+  const [pasoCheckout, setPasoCheckout] = useState(1);
+  const [clientSecret, setClientSecret] = useState('');
+  const [facturaUrl, setFacturaUrl] = useState(null);
+  const [modalLoginVisible, setModalLoginVisible] = useState(false);
+  const [cargandoIntencion, setCargandoIntencion] = useState(false);
+  const [errorModal, setErrorModal] = useState(null);
 
-    useEffect(() => {
-        const usuarioGuardado = localStorage.getItem('usuario');
-        if (usuarioGuardado) {
-            const usuario = JSON.parse(usuarioGuardado);
-            setDatosEnvio({
-                direccion: usuario.direccion || '',
-                telefono: usuario.telefono || ''
-            });
+  const [datosEnvio, setDatosEnvio] = useState({
+    direccion: '',
+    telefono: '',
+  });
+
+  const montadoRef = useRef(true);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
+
+  const total = useMemo(
+    () =>
+      itemsCarrito.reduce(
+        (acumulador, producto) =>
+          acumulador + (parseFloat(producto.precio) || 0) * (Number(producto.cantidad) || 0),
+        0
+      ),
+    [itemsCarrito]
+  );
+
+  useEffect(() => {
+    const usuario = leerUsuarioSeguro();
+    if (usuario) {
+      setDatosEnvio({
+        direccion: usuario.direccion || '',
+        telefono: usuario.telefono || '',
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (facturaUrl) {
+        URL.revokeObjectURL(facturaUrl);
+      }
+    };
+  }, [facturaUrl]);
+
+  useEffect(() => {
+    if (!errorModal && !modalLoginVisible) return undefined;
+
+    const manejarEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        if (errorModal) {
+          setErrorModal(null);
+        } else if (modalLoginVisible) {
+          setModalLoginVisible(false);
         }
-    }, []);
-
-    const handleChange = (e) => {
-        setDatosEnvio({ ...datosEnvio, [e.target.name]: e.target.value });
+      }
     };
 
-    // NUEVA FUNCIÓN: Valida la sesión en el Paso 1 en lugar del Paso 2
-    const intentarContinuarEnvio = () => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            setModalLoginVisible(true);
-        } else {
-            setPasoCheckout(2);
-        }
+    document.addEventListener('keydown', manejarEscape);
+    return () => {
+      document.removeEventListener('keydown', manejarEscape);
     };
+  }, [errorModal, modalLoginVisible]);
 
-    const prepararPago = async (e) => {
-        e.preventDefault(); 
-        const token = localStorage.getItem('token'); 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setDatosEnvio((prev) => ({ ...prev, [name]: value }));
+  };
 
-        try {
-            const respuesta = await axios.post('http://localhost:5000/api/pagos/crear-intencion', 
-                { total: total },
-                { headers: { 'Authorization': `Bearer ${token}` } }
-            );
-            
-            setClientSecret(respuesta.data.clientSecret);
-            setPasoCheckout(3);
-        } catch (error) {
-            console.error('Error al inicializar pasarela:', error);
-            // Idealmente, esto también se cambiaría por un modal de error en un futuro
-            alert('No se pudo conectar con el servidor de pagos.');
+  const intentarContinuarEnvio = () => {
+    const token = leerStorageTextoSeguro('token');
+    if (!token) {
+      setModalLoginVisible(true);
+      return;
+    }
+    setPasoCheckout(2);
+  };
+
+  const prepararPago = async (e) => {
+    e.preventDefault();
+    if (cargandoIntencion) return;
+
+    const token = leerStorageTextoSeguro('token');
+    if (!token) {
+      setModalLoginVisible(true);
+      return;
+    }
+
+    setCargandoIntencion(true);
+
+    try {
+      const respuesta = await axios.post(
+        'http://localhost:5000/api/pagos/crear-intencion',
+        { total: total },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!montadoRef.current) return;
+
+      if (!respuesta?.data?.clientSecret) {
+        setErrorModal({
+          titulo: 'No se pudo iniciar el pago',
+          mensaje: 'La pasarela no devolvió una sesión de pago válida. Intenta nuevamente.',
+        });
+        return;
+      }
+
+      setClientSecret(respuesta.data.clientSecret);
+      setPasoCheckout(3);
+    } catch (error) {
+      console.error('Error al inicializar pasarela:', error);
+      if (montadoRef.current) {
+        setErrorModal({
+          titulo: 'Error de conexión con pagos',
+          mensaje:
+            'No se pudo conectar con el servidor de pagos. Verifica tu conexión e intenta nuevamente.',
+        });
+      }
+    } finally {
+      if (montadoRef.current) {
+        setCargandoIntencion(false);
+      }
+    }
+  };
+
+  const procesarCompraFinal = async () => {
+    const usuario = leerUsuarioSeguro();
+    const token = leerStorageTextoSeguro('token');
+
+    if (!usuario || !token) {
+      if (montadoRef.current) {
+        setErrorModal({
+          titulo: 'Sesión no disponible',
+          mensaje:
+            'Tu pago fue autorizado, pero no pudimos leer los datos de tu sesión local. Revisa tu historial de pedidos o inicia sesión nuevamente.',
+        });
+      }
+      return;
+    }
+
+    try {
+      const respuesta = await axios.post(
+        'http://localhost:5000/api/pedidos/procesar',
+        {
+          id_usuario: usuario.id || usuario.id_usuario,
+          carrito: itemsCarrito,
+          total: total,
+          direccion_envio: datosEnvio.direccion,
+          telefono_contacto: datosEnvio.telefono,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const usuarioActualizado = {
+        ...usuario,
+        direccion: datosEnvio.direccion,
+        telefono: datosEnvio.telefono,
+      };
+      guardarUsuarioSeguro(usuarioActualizado);
+
+      if (respuesta?.data?.factura && montadoRef.current) {
+        const base64Pdf = respuesta.data.factura;
+        const byteCharacters = atob(base64Pdf);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i += 1) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
-    };
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const urlLocal = URL.createObjectURL(blob);
+        setFacturaUrl(urlLocal);
+      }
 
-    const procesarCompraFinal = async () => {
-        const usuarioGuardado = localStorage.getItem('usuario');
-        const token = localStorage.getItem('token'); 
-        const usuario = JSON.parse(usuarioGuardado);
+      vaciarCarrito();
+      if (montadoRef.current) {
+        setPasoCheckout(4);
+      }
+    } catch (error) {
+      console.error('Error procesando la respuesta del servidor:', error);
+      if (montadoRef.current) {
+        setErrorModal({
+          titulo: 'Error al confirmar el pedido',
+          mensaje:
+            'El pago se realizó, pero ocurrió un error al cargar la pantalla final. Revisa tu historial en Mis Pedidos.',
+        });
+      }
+    }
+  };
 
-        try {
-            const respuesta = await axios.post('http://localhost:5000/api/pedidos/procesar', 
-                {
-                    id_usuario: usuario.id || usuario.id_usuario, 
-                    carrito: carrito,
-                    total: total,
-                    direccion_envio: datosEnvio.direccion,
-                    telefono_contacto: datosEnvio.telefono
-                },
-                { headers: { 'Authorization': `Bearer ${token}` } }
-            );
+  const mostrarCheckout = itemsCarrito.length > 0 || pasoCheckout === 4;
 
-            const usuarioActualizado = { 
-                ...usuario, 
-                direccion: datosEnvio.direccion, 
-                telefono: datosEnvio.telefono 
-            };
-            localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
-            
-            if (respuesta.data.factura) {
-                const base64Pdf = respuesta.data.factura;
-                const byteCharacters = atob(base64Pdf);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/pdf' });
-                
-                const urlLocal = URL.createObjectURL(blob);
-                setFacturaUrl(urlLocal);
-            }
+  return (
+    <section className="afro-cart-page" aria-label="Carrito de compras y pago">
+      <div className="afro-cart-topbar">
+        <button
+          type="button"
+          className="afro-btn afro-btn-outline afro-detail-back"
+          onClick={volver}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Volver al Catálogo
+        </button>
+      </div>
 
-            // Vaciamos el carrito automáticamente en segundo plano antes de mostrar el éxito
-            vaciarCarrito();
-            setPasoCheckout(4);
+      {mostrarCheckout ? (
+        <nav aria-label="Progreso del proceso de compra">
+          <ol className="afro-stepper">
+            {PASOS_CHECKOUT.map((paso) => {
+              const estaActivo = paso.numero === pasoCheckout;
+              const estaCompletado = paso.numero < pasoCheckout;
+              return (
+                <li
+                  key={paso.numero}
+                  className={`afro-stepper-item${estaActivo ? ' is-active' : ''}${
+                    estaCompletado ? ' is-completed' : ''
+                  }`}
+                  aria-current={estaActivo ? 'step' : undefined}
+                >
+                  <span className="afro-stepper-dot" aria-hidden="true">
+                    {estaCompletado ? '✓' : paso.numero}
+                  </span>
+                  <span className="afro-stepper-label">{paso.etiqueta}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      ) : null}
 
-        } catch (error) {
-            console.error('Error procesando la respuesta del servidor:', error);
-            alert('El pago se realizó, pero ocurrió un error al cargar la pantalla final.');
-        }
-    };
-
-    return (
-        <div style={{ marginTop: '40px', padding: '20px', borderTop: '2px solid #eee' }}>
-            
-            <button 
-                onClick={volver} 
-                style={{ marginBottom: '20px', padding: '8px 15px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-                ← Volver al Catálogo
+      {!mostrarCheckout ? (
+        <div className="afro-card afro-empty-state">
+          <h2>Tu carrito está vacío</h2>
+          <p>Agrega algunos cosméticos de nuestro catálogo para comenzar.</p>
+          <div className="afro-empty-action">
+            <button type="button" className="afro-btn afro-btn-primary" onClick={volver}>
+              Explorar Productos
             </button>
-
-            {carrito.length === 0 && pasoCheckout !== 4 ? (
-                <div style={{ textAlign: 'center', padding: '40px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-                    <h2 style={{ color: '#1A1A1A' }}>Tu carrito está vacío</h2>
-                    <p style={{ color: '#666', marginBottom: '20px' }}>Agrega algunos cosméticos de nuestro catálogo para comenzar.</p>
-                    <button onClick={volver} style={{ padding: '12px 25px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        Explorar Productos
-                    </button>
-                </div>
-            ) : (
-                <div>
-                    {pasoCheckout === 1 && carrito.length > 0 && (
-                        <div>
-                            <h2 style={{ color: '#1A1A1A' }}>Resumen de Compra</h2>
-                            {carrito.map((item) => (
-                                <div key={item.id_producto} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', padding: '10px', borderBottom: '1px solid #f9f9f9' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                        <img src={item.imagen_url} alt={item.nombre} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
-                                        <div>
-                                            <span style={{ display: 'block', fontWeight: 'bold', color: '#1A1A1A' }}>{item.nombre}</span>
-                                        </div>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                        <span style={{ backgroundColor: '#F7CDD5', color: '#1A1A1A', padding: '5px 10px', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold' }}>Cant: {item.cantidad}</span>
-                                        <span style={{ fontWeight: 'bold', minWidth: '70px', textAlign: 'right', color: '#1A1A1A' }}>${(parseFloat(item.precio) * item.cantidad).toFixed(2)}</span>
-                                        <button onClick={() => eliminarDelCarrito(item.id_producto)} style={{ padding: '5px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Eliminar</button>
-                                    </div>
-                                </div>
-                            ))}
-                            <h3 style={{ textAlign: 'right', marginTop: '20px', color: '#1A1A1A' }}>Subtotal: ${total.toFixed(2)}</h3>
-                            
-                            {/* Botón actualizado para usar la validación de sesión */}
-                            <button onClick={intentarContinuarEnvio} style={{ float: 'right', padding: '12px 25px', backgroundColor: '#D97A8C', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>Continuar con el Envío</button>
-                            <div style={{ clear: 'both' }}></div>
-                        </div>
-                    )}
-
-                    {pasoCheckout === 2 && (
-                        <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: '#fff', padding: '30px', borderRadius: '8px', border: '1px solid #F7CDD5', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                            <h2 style={{ marginTop: 0, borderBottom: '2px solid #F7CDD5', paddingBottom: '10px', color: '#1A1A1A' }}>Datos de Envío</h2>
-                            <form onSubmit={prepararPago} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>Dirección de Entrega:</label>
-                                    <textarea name="direccion" value={datosEnvio.direccion} onChange={handleChange} required style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', minHeight: '80px', boxSizing: 'border-box', outlineColor: '#D97A8C' }} />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px', color: '#1A1A1A' }}>Teléfono de Contacto:</label>
-                                    <input type="text" name="telefono" value={datosEnvio.telefono} onChange={handleChange} required style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box', outlineColor: '#D97A8C' }} />
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
-                                    <button type="button" onClick={() => setPasoCheckout(1)} style={{ padding: '12px 20px', backgroundColor: 'transparent', color: '#1A1A1A', border: '1px solid #ccc', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>Volver</button>
-                                    <button type="submit" style={{ padding: '12px 25px', backgroundColor: '#D97A8C', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>Ir al Pago</button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {pasoCheckout === 3 && clientSecret && (
-                        <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-                            <h2 style={{ textAlign: 'center', color: '#1A1A1A' }}>Completar Pago</h2>
-                            <Elements stripe={stripePromise} options={{ clientSecret }}>
-                                <FormularioPago clientSecret={clientSecret} procesarCompraFinal={procesarCompraFinal} total={total} />
-                            </Elements>
-                            <button onClick={() => setPasoCheckout(2)} style={{ width: '100%', marginTop: '15px', padding: '12px', backgroundColor: 'transparent', color: '#1A1A1A', border: '1px solid #ccc', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold' }}>
-                                Volver a Datos de Envío
-                            </button>
-                        </div>
-                    )}
-
-                    {pasoCheckout === 4 && (
-                        <div style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto', backgroundColor: '#fff', padding: '40px', borderRadius: '8px', border: '1px solid #d4edda', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-                            <div style={{ width: '60px', height: '60px', backgroundColor: '#d4edda', color: '#28a745', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '30px', margin: '0 auto 20px auto' }}>✓</div>
-                            <h2 style={{ color: '#28a745', fontSize: '28px', marginTop: 0 }}>¡Pago Procesado Exitosamente!</h2>
-                            <p style={{ fontSize: '16px', color: '#555', marginBottom: '30px' }}>
-                                Tu orden ha sido confirmada. Hemos enviado una copia de esta factura electrónica a tu correo registrado.
-                            </p>
-                            
-                            {facturaUrl && (
-                                <div style={{ border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', marginBottom: '30px' }}>
-                                    <iframe src={facturaUrl} title="Factura PDF" width="100%" height="500px" style={{ border: 'none', display: 'block' }} />
-                                </div>
-                            )}
-
-                            {/* En lugar de forzar una recarga bruta del navegador, usamos el enrutador de React */}
-                            <button 
-                                onClick={() => navegarA('tienda')} 
-                                style={{ padding: '15px 30px', backgroundColor: '#D97A8C', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}
-                            >
-                                Finalizar y Volver al Catálogo
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* MODAL DE INICIO DE SESIÓN */}
-            {modalLoginVisible && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1A1A1A', fontSize: '22px' }}>Autenticación Requerida</h3>
-                        <p style={{ margin: '0 0 25px 0', color: '#555', fontSize: '15px' }}>
-                            Para procesar tu pago y registrar la dirección de envío, necesitas acceder a tu cuenta. Tus productos seguirán guardados en el carrito.
-                        </p>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <button 
-                                onClick={() => navegarA('login')} 
-                                style={{ width: '100%', padding: '12px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                            >
-                                Iniciar Sesión
-                            </button>
-                            <button 
-                                onClick={() => navegarA('registro')} 
-                                style={{ width: '100%', padding: '12px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
-                            >
-                                Crear una Cuenta
-                            </button>
-                            <button 
-                                onClick={() => setModalLoginVisible(false)} 
-                                style={{ width: '100%', padding: '10px', marginTop: '5px', backgroundColor: 'transparent', color: '#666', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontSize: '14px' }}
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+          </div>
         </div>
-    );
+      ) : (
+        <>
+          {pasoCheckout === 1 && itemsCarrito.length > 0 ? (
+            <div className="afro-card">
+              <h2 className="afro-cart-section-title">Resumen de Compra</h2>
+
+              <ul className="afro-cart-list">
+                {itemsCarrito.map((item) => {
+                  const precioUnitario = parseFloat(item.precio) || 0;
+                  const cantidadItem = Number(item.cantidad) || 0;
+                  const subtotalItem = precioUnitario * cantidadItem;
+
+                  return (
+                    <li key={item.id_producto} className="afro-cart-item">
+                      <div className="afro-cart-item-info">
+                        <img
+                          src={item.imagen_url}
+                          alt={item.nombre}
+                          loading="lazy"
+                          className="afro-cart-thumb"
+                        />
+                        <div className="afro-cart-item-text">
+                          <span className="afro-cart-item-name">{item.nombre}</span>
+                          <span className="afro-cart-item-unit afro-tabular">
+                            {formatearPrecio(precioUnitario)} c/u
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="afro-cart-item-actions">
+                        <span className="afro-badge afro-badge-rose afro-tabular">
+                          Cant: {cantidadItem}
+                        </span>
+                        <span className="afro-cart-item-subtotal afro-tabular">
+                          {formatearPrecio(subtotalItem)}
+                        </span>
+                        <button
+                          type="button"
+                          className="afro-btn afro-btn-danger afro-cart-remove-btn"
+                          onClick={() => eliminarDelCarrito(item.id_producto)}
+                          aria-label={`Eliminar ${item.nombre} del carrito`}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="afro-cart-summary-footer">
+                <div className="afro-cart-total-wrap">
+                  <span className="afro-cart-total-label">Total de productos</span>
+                  <h3 className="afro-cart-total-value afro-tabular">
+                    Subtotal: {formatearPrecio(total)}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="afro-btn afro-btn-primary"
+                  onClick={intentarContinuarEnvio}
+                >
+                  Continuar con el Envío
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {pasoCheckout === 2 ? (
+            <div className="afro-form-card">
+              <h2 className="afro-checkout-heading">Datos de Envío</h2>
+              <form onSubmit={prepararPago}>
+                <div className="afro-field">
+                  <label htmlFor="checkout-direccion" className="afro-label">
+                    Dirección de Entrega
+                  </label>
+                  <textarea
+                    id="checkout-direccion"
+                    name="direccion"
+                    className="afro-textarea"
+                    value={datosEnvio.direccion}
+                    onChange={handleChange}
+                    required
+                    placeholder="Calle, número, apartamento o punto de referencia"
+                  />
+                </div>
+
+                <div className="afro-field">
+                  <label htmlFor="checkout-telefono" className="afro-label">
+                    Teléfono de Contacto
+                  </label>
+                  <input
+                    id="checkout-telefono"
+                    type="tel"
+                    name="telefono"
+                    className="afro-input"
+                    value={datosEnvio.telefono}
+                    onChange={handleChange}
+                    required
+                    autoComplete="tel"
+                    placeholder="Ej. +57 300 123 4567"
+                  />
+                </div>
+
+                <div className="afro-checkout-form-actions">
+                  <button
+                    type="button"
+                    className="afro-btn afro-btn-outline"
+                    onClick={() => setPasoCheckout(1)}
+                    disabled={cargandoIntencion}
+                  >
+                    Volver
+                  </button>
+                  <button
+                    type="submit"
+                    className="afro-btn afro-btn-primary"
+                    disabled={cargandoIntencion}
+                  >
+                    {cargandoIntencion ? 'Preparando pago...' : 'Ir al Pago'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          {pasoCheckout === 3 && clientSecret ? (
+            <div className="afro-checkout-payment-wrap">
+              <h2 className="afro-checkout-payment-title">Completar Pago</h2>
+              <Elements stripe={stripePromise} options={{ clientSecret }}>
+                <FormularioPago
+                  clientSecret={clientSecret}
+                  procesarCompraFinal={procesarCompraFinal}
+                  total={total}
+                />
+              </Elements>
+              <button
+                type="button"
+                className="afro-btn afro-btn-outline afro-btn-full"
+                onClick={() => setPasoCheckout(2)}
+              >
+                Volver a Datos de Envío
+              </button>
+            </div>
+          ) : null}
+
+          {pasoCheckout === 4 ? (
+            <div className="afro-card afro-checkout-confirm">
+              <div className="afro-modal-icon-success" aria-hidden="true">
+                ✓
+              </div>
+              <h2 className="afro-checkout-confirm-title">¡Pago Procesado Exitosamente!</h2>
+              <p className="afro-checkout-confirm-desc">
+                Tu orden ha sido confirmada. Hemos enviado una copia de esta factura electrónica a
+                tu correo registrado.
+              </p>
+
+              {facturaUrl ? (
+                <div className="afro-pdf-frame">
+                  <iframe src={facturaUrl} title="Factura PDF" className="afro-pdf-iframe" />
+                </div>
+              ) : null}
+
+              <div className="afro-checkout-confirm-actions">
+                {facturaUrl ? (
+                  <a
+                    href={facturaUrl}
+                    download="Factura_Afrolash.pdf"
+                    className="afro-btn afro-btn-outline"
+                  >
+                    Descargar Factura PDF
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  className="afro-btn afro-btn-primary"
+                  onClick={() => navegarA('tienda')}
+                >
+                  Finalizar y Volver al Catálogo
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {modalLoginVisible ? (
+        <div
+          className="afro-modal-backdrop"
+          onClick={() => setModalLoginVisible(false)}
+        >
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="carrito-login-modal-title"
+            aria-describedby="carrito-login-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="carrito-login-modal-title" className="afro-modal-title">
+              Autenticación Requerida
+            </h3>
+            <p id="carrito-login-modal-desc" className="afro-modal-body">
+              Para procesar tu pago y registrar la dirección de envío, necesitas acceder a tu
+              cuenta. Tus productos seguirán guardados en el carrito.
+            </p>
+            <div className="afro-modal-actions afro-modal-actions--stack">
+              <button
+                type="button"
+                className="afro-btn afro-btn-primary"
+                onClick={() => navegarA('login')}
+                autoFocus
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                type="button"
+                className="afro-btn afro-btn-dark"
+                onClick={() => navegarA('registro')}
+              >
+                Crear una Cuenta
+              </button>
+              <button
+                type="button"
+                className="afro-btn afro-btn-outline"
+                onClick={() => setModalLoginVisible(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {errorModal ? (
+        <div
+          className="afro-modal-backdrop"
+          onClick={() => setErrorModal(null)}
+        >
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="carrito-error-modal-title"
+            aria-describedby="carrito-error-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="afro-modal-icon-danger" aria-hidden="true">
+              !
+            </div>
+            <h3 id="carrito-error-modal-title" className="afro-modal-title">
+              {errorModal.titulo}
+            </h3>
+            <p id="carrito-error-modal-desc" className="afro-modal-body">
+              {errorModal.mensaje}
+            </p>
+            <div className="afro-modal-actions">
+              <button
+                type="button"
+                className="afro-btn afro-btn-dark afro-btn-full"
+                onClick={() => setErrorModal(null)}
+                autoFocus
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 export default Carrito;

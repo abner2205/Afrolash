@@ -1,151 +1,364 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const formatearPrecio = (precio) => {
+  const numero = Number(precio);
+  return Number.isFinite(numero) ? `$${numero.toFixed(2)}` : `$${precio}`;
+};
+
 const ProductoDetalle = ({ idProducto, agregarAlCarrito, navegarA }) => {
-    const [producto, setProducto] = useState(null);
-    const [cantidad, setCantidad] = useState(1);
-    const [cargando, setCargando] = useState(true);
-    const [modalConfirmacion, setModalConfirmacion] = useState(false);
+  const [producto, setProducto] = useState(null);
+  const [cantidad, setCantidad] = useState(1);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
+  const [modalConfirmacion, setModalConfirmacion] = useState(false);
 
-    useEffect(() => {
-        window.scrollTo(0, 0);
-        const obtenerProducto = async () => {
-            try {
-                // Se asume que el backend tiene una ruta GET para un producto individual
-                const respuesta = await axios.get(`http://localhost:5000/api/productos/${idProducto}`);
-                setProducto(respuesta.data);
-            } catch (error) {
-                console.error('Error al cargar detalles del producto:', error);
-            } finally {
-                setCargando(false);
-            }
-        };
-        obtenerProducto();
-    }, [idProducto]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    let activo = true;
 
-    const manejarAjusteCantidad = (incremento) => {
-        let nuevaCantidad = cantidad + incremento;
-        if (nuevaCantidad < 1) nuevaCantidad = 1;
-        if (nuevaCantidad > producto.stock) nuevaCantidad = producto.stock;
-        setCantidad(nuevaCantidad);
-    };
-
-    const procesarAgregado = () => {
-        const exito = agregarAlCarrito(producto, cantidad);
-        if (exito) {
-            setModalConfirmacion(true);
-            setCantidad(1);
+    const obtenerProducto = async () => {
+      if (!idProducto) {
+        if (activo) {
+          setProducto(null);
+          setErrorCarga('No se especificó un producto válido para consultar.');
+          setCargando(false);
         }
+        return;
+      }
+
+      setCargando(true);
+      setErrorCarga('');
+      setCantidad(1);
+      setModalConfirmacion(false);
+
+      try {
+        const respuesta = await axios.get(`http://localhost:5000/api/productos/${idProducto}`);
+        if (!activo) return;
+
+        if (respuesta.data && typeof respuesta.data === 'object' && !Array.isArray(respuesta.data)) {
+          setProducto(respuesta.data);
+        } else {
+          setProducto(null);
+          setErrorCarga('No encontramos información disponible para este producto.');
+        }
+      } catch (error) {
+        console.error('Error al cargar detalles del producto:', error);
+        if (activo) {
+          setProducto(null);
+          setErrorCarga(
+            error.response?.status === 404
+              ? 'El producto solicitado no existe o ya no está disponible.'
+              : 'Ocurrió un problema al cargar los detalles del producto.'
+          );
+        }
+      } finally {
+        if (activo) {
+          setCargando(false);
+        }
+      }
     };
 
-    if (cargando) return <div style={{ textAlign: 'center', padding: '50px', color: '#1A1A1A' }}>Cargando información del producto...</div>;
-    if (!producto) return <div style={{ textAlign: 'center', padding: '50px', color: '#dc3545' }}>Producto no encontrado.</div>;
+    obtenerProducto();
 
+    return () => {
+      activo = false;
+    };
+  }, [idProducto]);
+
+  useEffect(() => {
+    if (!modalConfirmacion) return undefined;
+
+    const manejarEscape = (evento) => {
+      if (evento.key === 'Escape') {
+        setModalConfirmacion(false);
+      }
+    };
+
+    document.addEventListener('keydown', manejarEscape);
+    return () => {
+      document.removeEventListener('keydown', manejarEscape);
+    };
+  }, [modalConfirmacion]);
+
+  const manejarAjusteCantidad = (incremento) => {
+    if (!producto) return;
+    setCantidad((prev) => {
+      let nuevaCantidad = prev + incremento;
+      if (nuevaCantidad < 1) nuevaCantidad = 1;
+      if (nuevaCantidad > producto.stock) nuevaCantidad = producto.stock;
+      return nuevaCantidad;
+    });
+  };
+
+  const procesarAgregado = () => {
+    if (!producto) return;
+    const exito = agregarAlCarrito(producto, cantidad);
+    if (exito) {
+      setModalConfirmacion(true);
+      setCantidad(1);
+    }
+  };
+
+  if (cargando) {
     return (
-        <div style={{ maxWidth: '1000px', margin: '0 auto', backgroundColor: '#fff', padding: '30px', borderRadius: '8px', border: '1px solid #eee', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-            
-            <button onClick={() => navegarA('tienda')} style={{ marginBottom: '20px', padding: '8px 15px', backgroundColor: '#1A1A1A', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                ← Volver al Catálogo
-            </button>
-
-            {/* SECCIÓN PRINCIPAL: IMAGEN Y COMPRA */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '40px', marginBottom: '40px' }}>
-                <div style={{ flex: '1 1 400px' }}>
-                    <img src={producto.imagen_url} alt={producto.nombre} style={{ width: '100%', height: 'auto', borderRadius: '8px', border: '1px solid #ddd', objectFit: 'cover' }} />
-                </div>
-                
-                <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <h1 style={{ color: '#1A1A1A', margin: '0 0 10px 0', fontSize: '2.5rem' }}>{producto.nombre}</h1>
-                    <p style={{ color: '#28a745', fontSize: '2rem', fontWeight: 'bold', margin: '0 0 20px 0' }}>${producto.precio}</p>
-                    <p style={{ color: '#555', fontSize: '1.1rem', lineHeight: '1.6', marginBottom: '30px' }}>{producto.descripcion}</p>
-                    
-                    {producto.stock > 0 ? (
-                        <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px', border: '1px solid #eee' }}>
-                            <p style={{ margin: '0 0 15px 0', color: '#1A1A1A', fontWeight: 'bold' }}>Stock disponible: {producto.stock} unidades</p>
-                            
-                            <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #ccc', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#fff' }}>
-                                    <button onClick={() => manejarAjusteCantidad(-1)} style={{ padding: '12px 15px', border: 'none', backgroundColor: '#f8f9fa', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}>-</button>
-                                    <span style={{ width: '50px', textAlign: 'center', fontSize: '18px', fontWeight: 'bold' }}>{cantidad}</span>
-                                    <button onClick={() => manejarAjusteCantidad(1)} style={{ padding: '12px 15px', border: 'none', backgroundColor: '#f8f9fa', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}>+</button>
-                                </div>
-                                
-                                <button onClick={procesarAgregado} style={{ flex: 1, padding: '15px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', transition: 'background-color 0.3s' }}>
-                                    Agregar al Carrito
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div style={{ padding: '20px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #f5c6cb' }}>
-                            Producto actualmente agotado.
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* SECCIÓN DETALLADA: INGREDIENTES, INSTRUCCIONES, ETC. */}
-            <div style={{ borderTop: '2px solid #F7CDD5', paddingTop: '30px', display: 'flex', flexDirection: 'column', gap: '40px' }}>
-                
-                {producto.ingredientes && (
-                    <div style={{ backgroundColor: '#fdfdfd', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #1A1A1A' }}>
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1A1A1A' }}>Ingredientes Principales</h3>
-                        <p style={{ color: '#555', lineHeight: '1.6', margin: 0 }}>{producto.ingredientes}</p>
-                    </div>
-                )}
-
-                {producto.instrucciones_uso && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', alignItems: 'center' }}>
-                        <div style={{ flex: '1 1 300px' }}>
-                            <h3 style={{ margin: '0 0 15px 0', color: '#1A1A1A', borderBottom: '2px solid #eee', paddingBottom: '10px' }}>Instrucciones de Uso</h3>
-                            <p style={{ color: '#555', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{producto.instrucciones_uso}</p>
-                        </div>
-                        {producto.imagen_instrucciones && (
-                            <div style={{ flex: '1 1 300px' }}>
-                                <img src={producto.imagen_instrucciones} alt="Instrucciones" style={{ width: '100%', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }} />
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {producto.consejos && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap-reverse', gap: '30px', alignItems: 'center', backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
-                        {producto.imagen_consejos && (
-                            <div style={{ flex: '1 1 300px' }}>
-                                <img src={producto.imagen_consejos} alt="Consejos de uso" style={{ width: '100%', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }} />
-                            </div>
-                        )}
-                        <div style={{ flex: '1 1 300px' }}>
-                            <h3 style={{ margin: '0 0 15px 0', color: '#CFA144', borderBottom: '2px solid #eee', paddingBottom: '10px' }}>Consejos de Afrolash</h3>
-                            <p style={{ color: '#555', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{producto.consejos}</p>
-                        </div>
-                    </div>
-                )}
-
-                {producto.precauciones && (
-                    <div style={{ backgroundColor: '#fff3cd', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #ffc107' }}>
-                        <h3 style={{ margin: '0 0 10px 0', color: '#856404' }}>Precauciones y Advertencias</h3>
-                        <p style={{ color: '#856404', lineHeight: '1.6', margin: 0 }}>{producto.precauciones}</p>
-                    </div>
-                )}
-
-            </div>
-
-            {/* MODAL DE CONFIRMACIÓN */}
-            {modalConfirmacion && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                        <div style={{ width: '50px', height: '50px', backgroundColor: '#d4edda', color: '#28a745', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '24px', margin: '0 auto 15px auto' }}>✓</div>
-                        <h3 style={{ margin: '0 0 10px 0', color: '#1A1A1A' }}>¡Añadido con éxito!</h3>
-                        <p style={{ margin: '0 0 25px 0', color: '#555', fontSize: '15px' }}>El producto fue agregado a su carrito de compras.</p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <button onClick={() => navegarA('carrito')} style={{ width: '100%', padding: '12px', backgroundColor: '#D97A8C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Ver mi carrito</button>
-                            <button onClick={() => setModalConfirmacion(false)} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#1A1A1A', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Seguir leyendo</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+      <div className="afro-card afro-empty-state" role="status" aria-live="polite">
+        <h2>Cargando producto</h2>
+        <p>Cargando información del producto...</p>
+      </div>
     );
+  }
+
+  if (errorCarga || !producto) {
+    return (
+      <div className="afro-card afro-empty-state">
+        <div className="afro-inline-error">
+          <h2>Producto no encontrado</h2>
+          <p>{errorCarga || 'No pudimos encontrar el producto solicitado.'}</p>
+          <button
+            type="button"
+            className="afro-btn afro-btn-primary"
+            onClick={() => navegarA('tienda')}
+          >
+            Volver al Catálogo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const tieneSeccionesDetalladas = Boolean(
+    producto.ingredientes ||
+      producto.instrucciones_uso ||
+      producto.consejos ||
+      producto.precauciones
+  );
+
+  return (
+    <article className="afro-card afro-detail-page" aria-labelledby="detalle-producto-titulo">
+      <button
+        type="button"
+        className="afro-btn afro-btn-outline afro-detail-back"
+        onClick={() => navegarA('tienda')}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        Volver al Catálogo
+      </button>
+
+      <div className="afro-detail-grid">
+        <div className="afro-detail-media">
+          <img
+            src={producto.imagen_url}
+            alt={producto.nombre}
+            className="afro-detail-img"
+          />
+        </div>
+
+        <div className="afro-detail-info">
+          {producto.categoria ? (
+            <span className="afro-badge afro-badge-rose">{producto.categoria}</span>
+          ) : null}
+
+          <h1 id="detalle-producto-titulo" className="afro-detail-title">
+            {producto.nombre}
+          </h1>
+
+          <p className="afro-detail-price">{formatearPrecio(producto.precio)}</p>
+
+          {producto.descripcion ? (
+            <p className="afro-detail-desc">{producto.descripcion}</p>
+          ) : null}
+
+          {producto.stock > 0 ? (
+            <div className="afro-detail-buy-box">
+              <div>
+                <span className="afro-badge afro-badge-success">
+                  Stock disponible: {producto.stock} unidades
+                </span>
+              </div>
+
+              <div className="afro-detail-actions">
+                <div className="afro-qty-control" role="group" aria-label="Selector de cantidad">
+                  <button
+                    type="button"
+                    className="afro-qty-btn"
+                    onClick={() => manejarAjusteCantidad(-1)}
+                    aria-label="Disminuir cantidad"
+                    disabled={cantidad <= 1}
+                  >
+                    -
+                  </button>
+                  <span
+                    className="afro-qty-value"
+                    aria-live="polite"
+                    aria-label={`Cantidad seleccionada: ${cantidad}`}
+                  >
+                    {cantidad}
+                  </span>
+                  <button
+                    type="button"
+                    className="afro-qty-btn"
+                    onClick={() => manejarAjusteCantidad(1)}
+                    aria-label="Aumentar cantidad"
+                    disabled={cantidad >= producto.stock}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="afro-btn afro-btn-primary afro-detail-add-btn"
+                  onClick={procesarAgregado}
+                >
+                  Agregar al Carrito
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="afro-toast afro-toast-error afro-btn-full" role="status">
+              Producto actualmente agotado.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {tieneSeccionesDetalladas ? (
+        <div className="afro-detail-sections">
+          {producto.ingredientes ? (
+            <section
+              className="afro-detail-block afro-detail-block--ingredients"
+              aria-labelledby="detalle-ingredientes-titulo"
+            >
+              <h2 id="detalle-ingredientes-titulo" className="afro-detail-block-title">
+                Ingredientes Principales
+              </h2>
+              <p className="afro-detail-block-text">{producto.ingredientes}</p>
+            </section>
+          ) : null}
+
+          {producto.instrucciones_uso ? (
+            <section
+              className={`afro-detail-split${
+                producto.imagen_instrucciones ? '' : ' afro-detail-split--single'
+              }`}
+              aria-labelledby="detalle-instrucciones-titulo"
+            >
+              <div>
+                <h2 id="detalle-instrucciones-titulo" className="afro-detail-split-title">
+                  Instrucciones de Uso
+                </h2>
+                <p className="afro-detail-block-text">{producto.instrucciones_uso}</p>
+              </div>
+              {producto.imagen_instrucciones ? (
+                <div className="afro-detail-split-media">
+                  <img
+                    src={producto.imagen_instrucciones}
+                    alt={`Instrucciones de uso de ${producto.nombre}`}
+                    loading="lazy"
+                    className="afro-detail-split-img"
+                  />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {producto.consejos ? (
+            <section
+              className={`afro-detail-split afro-detail-split--consejos${
+                producto.imagen_consejos ? '' : ' afro-detail-split--single'
+              }`}
+              aria-labelledby="detalle-consejos-titulo"
+            >
+              <div>
+                <h2 id="detalle-consejos-titulo" className="afro-detail-split-title">
+                  Consejos de Afrolash
+                </h2>
+                <p className="afro-detail-block-text">{producto.consejos}</p>
+              </div>
+              {producto.imagen_consejos ? (
+                <div className="afro-detail-split-media">
+                  <img
+                    src={producto.imagen_consejos}
+                    alt={`Consejos de uso de ${producto.nombre}`}
+                    loading="lazy"
+                    className="afro-detail-split-img"
+                  />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {producto.precauciones ? (
+            <section
+              className="afro-detail-block afro-detail-block--warning"
+              aria-labelledby="detalle-precauciones-titulo"
+            >
+              <h2 id="detalle-precauciones-titulo" className="afro-detail-block-title">
+                Precauciones y Advertencias
+              </h2>
+              <p className="afro-detail-block-text">{producto.precauciones}</p>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
+      {modalConfirmacion ? (
+        <div
+          className="afro-modal-backdrop"
+          onClick={() => setModalConfirmacion(false)}
+        >
+          <div
+            className="afro-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detalle-modal-title"
+            aria-describedby="detalle-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="afro-modal-icon-success" aria-hidden="true">
+              ✓
+            </div>
+            <h2 id="detalle-modal-title" className="afro-modal-title">
+              ¡Añadido con éxito!
+            </h2>
+            <p id="detalle-modal-desc" className="afro-modal-body">
+              El producto <strong>{producto.nombre}</strong> fue agregado a tu carrito de compras.
+            </p>
+            <div className="afro-modal-actions afro-modal-actions--stack">
+              <button
+                type="button"
+                className="afro-btn afro-btn-primary"
+                onClick={() => navegarA('carrito')}
+                autoFocus
+              >
+                Ver mi carrito
+              </button>
+              <button
+                type="button"
+                className="afro-btn afro-btn-outline"
+                onClick={() => setModalConfirmacion(false)}
+              >
+                Seguir leyendo
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
 };
 
 export default ProductoDetalle;
