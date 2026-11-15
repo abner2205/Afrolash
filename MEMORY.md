@@ -6,8 +6,8 @@ Este documento almacena el estado persistente, decisiones técnicas y el histori
 
 ## 1. Estado Actual del Sistema
 
-- **Versión / Stack**: Frontend React 19 (`client/` v0.1.0) + Backend Node.js / Express 5 (`server/` v1.0.0) + MySQL (`mysql2/promise`).
-- **Estado de Compilación y Pruebas**: Proyecto estructurado en `client/` y `server/`. El frontend dispone de compilación CRA y pruebas Jest/RTL (`client/src/Carrito.test.js`, además de `client/src/App.test.js` pendiente de alinear con la UI actual). El backend dispone de Jest + Supertest configurado en `server/package.json` (`npm --prefix server test`) con `server/auditoria.test.js` (prueba de integración contra MySQL).
+- **Versión / Stack**: Frontend React 19 (`client/` v0.1.0) + Backend Node.js / Express 5 (`server/` v1.0.0) + MySQL (`mysql2/promise`). Dependencias auditadas y remediadas bajo la Spec 001 (0 vulnerabilidades críticas y 0 altas tanto en `server/` como en `client/`; 0 vulnerabilidades en runtime de producción en backend).
+- **Estado de Compilación y Pruebas**: Proyecto estructurado en `client/` y `server/`. El frontend dispone de compilación CRA (`npm --prefix client run build` con código 0) y pruebas Jest/RTL (`client/src/Carrito.test.js` en verde, además de `client/src/App.test.js` que carga componentes sin errores de importación pero con aserto `/learn react/i` pendiente de alinear con la UI actual). El backend dispone de Jest + Supertest configurado en `server/package.json` (`npm --prefix server test`) con `server/auditoria.test.js` (prueba de integración contra MySQL en verde) y verificación sintáctica/modular limpia (`node --check server/index.js` y carga de módulos exitosa).
 - **Persistencia / Datos**: Base de datos relacional MySQL (`afrolash_db`) gestionada por pool de conexiones (`server/config/db.js`) con las tablas `Usuarios`, `Productos`, `Pedidos`, `Detalles_pedido` y `auditoria` (alimentada por triggers MySQL). Almacenamiento de imágenes de productos en `client/public/img/` vía Multer y estado de carrito/sesión en `localStorage`.
 - **Servicios / Interfaces**:
   - **API REST (`server/`, puerto 5000)**:
@@ -28,6 +28,7 @@ Este documento almacena el estado persistente, decisiones técnicas y el histori
 | 2026-11-14 | Arquitectura Monorepo Cliente/Servidor (`client/` y `server/`) | Comunicación mediante API REST JSON, autenticación JWT sin estado, RBAC de 3 niveles (`cliente`, `empleado` con `verificarPersonal`, `admin` con `adminMiddleware`) y carga local de imágenes en `client/public/img/`. |
 | 2026-11-14 | Modularización del panel administrativo y entorno de pruebas | División de la interfaz administrativa en `client/src/components/admin/` (`AdminInventario`, `AdminVentas`, `AdminMetricas`, `AdminUsuarios`) y configuración de Jest + Supertest en `server/` (`auditoria.test.js`) junto a `client/src/Carrito.test.js`. |
 | 2026-11-14 | Generación híbrida de facturas PDF (`server/utils/enviarFactura.js`) | Genera la factura con `pdfkit` retornando el contenido en Base64 al frontend y envía copia por SMTP (`nodemailer`) con tolerancia a fallos de correo para no bloquear la compra. |
+| 2026-11-14 | Estrategia de remediación de dependencias NPM (Spec 001) | Remediación mediante `npm audit fix` no destructivo (sin `--force`), actualización de rangos compatibles y directivas `overrides` selectivas verificadas en `client/package.json` y `server/package.json`, preservando intactos `react-scripts@5.0.1`, `exceljs@4.4.0`, `jest@30.4.2` y `nodemon@3.1.13` sin alterar el código fuente. |
 
 ---
 
@@ -35,13 +36,16 @@ Este documento almacena el estado persistente, decisiones técnicas y el histori
 
 | ID | Nombre | Estado | Resumen |
 | :--- | :--- | :--- | :--- |
-| - | *(Sin specs activas aún)* | - | El proyecto está listo para iniciar su primera spec con `/sdd` o `@coordinator`. |
+| 001 | Remediación de Vulnerabilidades NPM | Completado | server/ pasó de 22 a 5 bajas (0 runtime) y client/ de 68 a 15 (0 críticas, 0 altas); validado y aprobado por @reviewer. |
 
 ---
 
 ## 4. Deuda Técnica y Pendientes Inmediatos
 
-1. **Transacciones SQL en `procesarPedido`**: Envolver la creación del pedido, inserción de `Detalles_pedido` y descuento de `stock` en `server/controllers/pedidoController.js` dentro de una transacción MySQL (`beginTransaction` / `commit` / `rollback`) para evitar estados parciales ante fallos.
-2. **Cobertura de pruebas automatizadas**: Actualizar `client/src/App.test.js` (que conserva el test base de Create React App) y ampliar pruebas unitarias/integración en `client/` y `server/` para controladores y rutas protegidas.
-3. **Unificación de nombres de tablas SQL**: Estandarizar mayúsculas/minúsculas en consultas SQL de `server/` (`Usuarios` vs `usuarios`, `Productos` vs `productos`) para compatibilidad estricta en servidores MySQL sobre Linux.
-4. **Consolidación de dependencias y variables de entorno**: Unificar el uso de `bcryptjs` vs `bcrypt` en `server/` e incluir `EMAIL_USER` y `EMAIL_PASS` en `server/.env.example` (utilizadas por `authController.js`, `usuarioController.js` y `enviarFactura.js`).
+1. **Excepciones residuales de dependencias (RF-05, Spec 001)**:
+   - `deepmerge >=4.2.0` (baja): presente en sub-dependencias de desarrollo/build tools (`jest-config` en `server/`; `workbox-build`, `@svgr/webpack`, `fork-ts-checker-webpack-plugin`, `jest-config` en `client/`). No cuenta con versión parcheada en la rama 4.x y forzar una actualización mayor degradaría o rompería las herramientas de compilación/pruebas.
+   - `webpack-dev-server <=5.2.5` (moderada): anclado estrictamente por `react-scripts@5.0.1` en desarrollo. Un override a v5 rompe la API de configuración interna de Create React App v5 (`onBeforeSetupMiddleware` / `onAfterSetupMiddleware`), por lo que se mantiene confinado a entorno de desarrollo local sin impacto en el artefacto de producción generado por `npm run build`.
+2. **Transacciones SQL en `procesarPedido`**: Envolver la creación del pedido, inserción de `Detalles_pedido` y descuento de `stock` en `server/controllers/pedidoController.js` dentro de una transacción MySQL (`beginTransaction` / `commit` / `rollback`) para evitar estados parciales ante fallos.
+3. **Cobertura de pruebas automatizadas**: Actualizar `client/src/App.test.js` (que conserva el test base de Create React App) y ampliar pruebas unitarias/integración en `client/` y `server/` para controladores y rutas protegidas.
+4. **Unificación de nombres de tablas SQL**: Estandarizar mayúsculas/minúsculas en consultas SQL de `server/` (`Usuarios` vs `usuarios`, `Productos` vs `productos`) para compatibilidad estricta en servidores MySQL sobre Linux.
+5. **Consolidación de dependencias y variables de entorno**: Unificar el uso de `bcryptjs` vs `bcrypt` en `server/` e incluir `EMAIL_USER` y `EMAIL_PASS` en `server/.env.example` (utilizadas por `authController.js`, `usuarioController.js` y `enviarFactura.js`).

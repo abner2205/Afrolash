@@ -19,11 +19,15 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.0.2",
-    "mysql2": "^3.17.3",
-    "nodemailer": "^9.0.1",
+    "multer": "^2.5.0",
+    "mysql2": "^3.24.6",
+    "nodemailer": "^10.5.0",
     "pdfkit": "^0.17.2",
     "stripe": "^20.3.1"
+  },
+  "overrides": {
+    "glob": "^14.0.6",
+    "minimatch": "^11.0.8"
   },
   "devDependencies": {
     "jest": "^30.4.2",
