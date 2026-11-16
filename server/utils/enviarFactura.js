@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
+const { limpiarSaltosLinea, escaparHtml } = require('./seguridadUtils');
 
 const enviarFactura = async (usuarioEmail, datosPedido, carrito, total) => {
     return new Promise((resolve, reject) => {
@@ -23,10 +24,13 @@ const enviarFactura = async (usuarioEmail, datosPedido, carrito, total) => {
         doc.on('end', async () => {
             let pdfData = Buffer.concat(buffers);
 
+            const destinatarioLimpio = limpiarSaltosLinea(usuarioEmail);
+            const asuntoLimpio = limpiarSaltosLinea(`Factura de tu pedido #${datosPedido.id_pedido} - Afrolash`);
+
             const mailOptions = {
                 from: `"Afrolash C.A." <${process.env.EMAIL_USER}>`,
-                to: usuarioEmail,
-                subject: `Factura de tu pedido #${datosPedido.id_pedido} - Afrolash`,
+                to: destinatarioLimpio,
+                subject: asuntoLimpio,
                 text: `Hola. Adjuntamos la factura en formato PDF de tu compra reciente por un total de $${total}. Los productos serán despachados a la brevedad. Gracias por tu preferencia.`,
                 attachments: [
                     {
@@ -55,8 +59,8 @@ const enviarFactura = async (usuarioEmail, datosPedido, carrito, total) => {
         
         doc.fontSize(14).text(`Orden de Compra: #${datosPedido.id_pedido}`);
         doc.fontSize(12).text(`Fecha: ${new Date().toLocaleDateString('es-VE')}`);
-        doc.text(`Dirección de envío: ${datosPedido.direccion}`);
-        doc.text(`Teléfono de contacto: ${datosPedido.telefono}`);
+        doc.text(`Dirección de envío: ${limpiarSaltosLinea(datosPedido.direccion || '')}`);
+        doc.text(`Teléfono de contacto: ${limpiarSaltosLinea(datosPedido.telefono || '')}`);
         doc.moveDown();
         
         doc.text('------------------------------------------------------------------');

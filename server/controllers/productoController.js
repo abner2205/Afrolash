@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { limpiarArchivosSubidos } = require('../middleware/uploadMiddleware');
 
 // Obtener todos los productos del catálogo
 exports.obtenerProductos = async (req, res) => {
@@ -38,7 +39,13 @@ exports.crearProducto = async (req, res) => {
 
     // Al usar upload.fields, los archivos se guardan en req.files (plural) y es un objeto
     if (!req.files || !req.files['imagen']) {
+        await limpiarArchivosSubidos(req);
         return res.status(400).json({ mensaje: 'Es obligatorio adjuntar la imagen principal fotográfica del producto.' });
+    }
+
+    if (!nombre || !precio || stock === undefined) {
+        await limpiarArchivosSubidos(req);
+        return res.status(400).json({ mensaje: 'Todos los campos obligatorios deben completarse.' });
     }
 
     // Rutas de las imágenes (verificando si se subieron las opcionales)
@@ -61,6 +68,7 @@ exports.crearProducto = async (req, res) => {
         res.status(201).json({ mensaje: 'Producto registrado exitosamente con información detallada', id_producto: resultado.insertId });
     } catch (error) {
         console.error('Error al crear producto:', error.message);
+        await limpiarArchivosSubidos(req);
         res.status(500).json({ mensaje: 'Error interno al registrar el cosmético en la base de datos' });
     }
 };
@@ -108,7 +116,7 @@ exports.actualizarProducto = async (req, res) => {
     const imagen_consejos = req.files && req.files['imagen_consejos'] ? '/img/' + req.files['imagen_consejos'][0].filename : null;
 
     try {
-        await db.query(
+        const [resultado] = await db.query(
             `UPDATE Productos 
              SET nombre = ?, descripcion = ?, precio = ?, stock = ?,
                  ingredientes = ?, instrucciones_uso = ?, consejos = ?, precauciones = ?,
@@ -123,9 +131,16 @@ exports.actualizarProducto = async (req, res) => {
                 id
             ]
         );
+
+        if (resultado.affectedRows === 0) {
+            await limpiarArchivosSubidos(req);
+            return res.status(404).json({ mensaje: 'Producto no encontrado en la base de datos' });
+        }
+
         res.status(200).json({ mensaje: 'Producto actualizado exitosamente' });
     } catch (error) {
         console.error('Error al actualizar producto:', error.message);
+        await limpiarArchivosSubidos(req);
         res.status(500).json({ mensaje: 'Error interno al actualizar el cosmético' });
     }
 };

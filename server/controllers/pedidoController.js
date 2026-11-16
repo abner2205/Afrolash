@@ -2,83 +2,183 @@ const db = require('../config/db');
 const enviarFactura = require('../utils/enviarFactura');
 
 exports.procesarPedido = async (req, res) => {
-    // Ahora el backend espera recibir la dirección y el teléfono desde el formulario
-    const { id_usuario, carrito, total, direccion_envio, telefono_contacto } = req.body;
+    // Inmunidad IDOR / BOLA: Obtener id_usuario exclusivamente del token autenticado
+    const id_usuario = req.usuario && (req.usuario.id || req.usuario.id_usuario);
+    if (!id_usuario) {
+        return res.status(401).json({ mensaje: 'No autorizado. Sesión no válida.' });
+    }
+
+    const { carrito, direccion_envio, telefono_contacto } = req.body;
+
+    // Validación de entrada antes de abrir transacción
+    if (
+        !Array.isArray(carrito) ||
+        carrito.length === 0 ||
+        typeof direccion_envio !== 'string' ||
+        direccion_envio.trim().length === 0 ||
+        typeof telefono_contacto !== 'string' ||
+        telefono_contacto.trim().length === 0
+    ) {
+        return res.status(400).json({ mensaje: 'Los datos del pedido o del carrito son inválidos.' });
+    }
+
+    for (const item of carrito) {
+        if (!item || typeof item !== 'object') {
+            return res.status(400).json({ mensaje: 'Los datos del producto en el carrito son inválidos.' });
+        }
+        const idProd = Number(item.id_producto);
+        const cant = Number(item.cantidad);
+        if (!Number.isInteger(idProd) || idProd <= 0 || !Number.isInteger(cant) || cant < 1) {
+            return res.status(400).json({ mensaje: 'Las cantidades y productos del carrito deben ser enteros válidos.' });
+        }
+    }
+
+    // Consolida cantidades por id_producto (por si llegan ítems repetidos del mismo producto)
+    const mapaConsolidado = new Map();
+    for (const item of carrito) {
+        const idProd = Number(item.id_producto);
+        const cant = Number(item.cantidad);
+        mapaConsolidado.set(idProd, (mapaConsolidado.get(idProd) || 0) + cant);
+    }
+
+    // Ordena por id_producto ascendente para evitar interbloqueos (deadlocks) bajo concurrencia
+    const productosOrdenados = Array.from(mapaConsolidado.entries())
+        .map(([id_producto, cantidad]) => ({ id_producto, cantidad }))
+        .sort((a, b) => a.id_producto - b.id_producto);
+
+    let connection;
+    let transaccionIniciada = false;
 
     try {
-        // Actualiza la consulta de inserción para incluir los nuevos campos de envío
-        const [resultadoPedido] = await db.query(
-            'INSERT INTO Pedidos (id_usuario, total, direccion_envio, telefono_contacto) VALUES (?, ?, ?, ?)',
-            [id_usuario, total, direccion_envio, telefono_contacto]
-        );
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+        transaccionIniciada = true;
 
-        // NUEVO: 2. Actualizar el perfil del usuario con los últimos datos de contacto utilizados
-        try {
-            // Aseguramos que las variables no sean nulas antes de actualizar
-            if (direccion_envio && telefono_contacto) {
-                await db.query(
-                    'UPDATE Usuarios SET direccion = ?, telefono = ? WHERE id_usuario = ?',
-                    [direccion_envio, telefono_contacto, id_usuario]
-                );
-            }
-        } catch (errorActualizacion) {
-            console.error('Advertencia: No se pudo actualizar el perfil del usuario:', errorActualizacion.message);
-        }
-        
-        const id_pedido = resultadoPedido.insertId;
+        const itemsAutoritativos = [];
+        let totalAcumulado = 0;
 
-        for (let item of carrito) {
-            const precioParaInsertar = item.precio || item.precio_unitario;
-
-            await db.query(
-                'INSERT INTO Detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
-                [id_pedido, item.id_producto, item.cantidad, precioParaInsertar]
-            );
-
-            // Mantenemos la lógica de reducción de stock
-            await db.query(
-                `UPDATE Productos 
-                 SET stock = stock - ? 
-                 WHERE id_producto = ?`,
-                [item.cantidad, item.id_producto]
-            );
-            
-            // Opcional: Actualiza el estado a "agotado" si el stock llega a 0, según las opciones de tu ENUM
-            await db.query(
-                `UPDATE Productos SET estado = 'agotado' WHERE stock <= 0 AND id_producto = ?`, 
+        for (const item of productosOrdenados) {
+            const [filas] = await connection.query(
+                'SELECT id_producto, nombre, precio, stock, estado FROM Productos WHERE id_producto = ? FOR UPDATE',
                 [item.id_producto]
             );
+
+            if (!filas || filas.length === 0 || Number(filas[0].estado) !== 1) {
+                await connection.rollback();
+                transaccionIniciada = false;
+                return res.status(400).json({ mensaje: 'Uno o más productos no existen o no están disponibles.' });
+            }
+
+            const productoBD = filas[0];
+            const stockActual = Number(productoBD.stock);
+            const precioOficial = Number(productoBD.precio);
+
+            if (stockActual < item.cantidad) {
+                await connection.rollback();
+                transaccionIniciada = false;
+                return res.status(409).json({ mensaje: `Stock insuficiente para el producto ${productoBD.nombre}.` });
+            }
+
+            const subtotal = precioOficial * item.cantidad;
+            totalAcumulado += subtotal;
+
+            itemsAutoritativos.push({
+                id_producto: productoBD.id_producto,
+                nombre: productoBD.nombre,
+                precio: precioOficial,
+                precio_unitario: precioOficial,
+                cantidad: item.cantidad,
+                subtotal: Number(subtotal.toFixed(2))
+            });
         }
-        // NUEVO: Consultar el correo del cliente para enviar la factura
-        const [usuarioData] = await db.query('SELECT correo FROM Usuarios WHERE id_usuario = ?', [id_usuario]);
-        const correoCliente = usuarioData[0].correo;
 
-        // Ejecutar la generación del PDF y envío de correo en segundo plano
-        const datosParaFactura = { 
-               id_pedido: id_pedido, 
-               direccion: direccion_envio, 
-               telefono: telefono_contacto 
-           };
+        const totalAutoritativo = Number(totalAcumulado.toFixed(2));
+        const direccionLimpia = direccion_envio.trim();
+        const telefonoLimpio = telefono_contacto.trim();
 
-           // Ejecutar la generación del PDF, el envío del correo y esperar el resultado
-           const facturaBase64 = await enviarFactura(correoCliente, datosParaFactura, carrito, total);
+        // Inserta el pedido maestro con el total autoritativo
+        const [resultadoPedido] = await connection.query(
+            'INSERT INTO Pedidos (id_usuario, total, direccion_envio, telefono_contacto) VALUES (?, ?, ?, ?)',
+            [id_usuario, totalAutoritativo, direccionLimpia, telefonoLimpio]
+        );
+        const id_pedido = resultadoPedido.insertId;
 
-           // Respuesta al frontend
-           res.status(201).json({ 
-               mensaje: 'Transacción procesada correctamente', 
-               id_pedido: id_pedido,
-               factura: facturaBase64 // Esta es la propiedad vital que React intenta leer
-           });
+        // Actualiza Usuarios en la misma conexión
+        await connection.query(
+            'UPDATE Usuarios SET direccion = ?, telefono = ? WHERE id_usuario = ?',
+            [direccionLimpia, telefonoLimpio, id_usuario]
+        );
+
+        // Inserta cada línea en Detalles_pedido y descuenta existencias en Productos
+        for (const item of itemsAutoritativos) {
+            await connection.query(
+                'INSERT INTO Detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
+                [id_pedido, item.id_producto, item.cantidad, item.precio]
+            );
+
+            await connection.query(
+                'UPDATE Productos SET stock = stock - ? WHERE id_producto = ?',
+                [item.cantidad, item.id_producto]
+            );
+        }
+
+        // Consulta el correo del usuario en Usuarios dentro de la transacción
+        const [usuarioData] = await connection.query(
+            'SELECT correo FROM Usuarios WHERE id_usuario = ?',
+            [id_usuario]
+        );
+        const correoCliente = usuarioData && usuarioData.length > 0 ? usuarioData[0].correo : null;
+
+        // Confirma la transacción MySQL
+        await connection.commit();
+        transaccionIniciada = false;
+
+        // Facturación post-commit fuera de la transacción MySQL
+        let facturaBase64 = null;
+        try {
+            const datosParaFactura = {
+                id_pedido: id_pedido,
+                direccion: direccionLimpia,
+                telefono: telefonoLimpio
+            };
+
+            if (correoCliente) {
+                facturaBase64 = await enviarFactura(correoCliente, datosParaFactura, itemsAutoritativos, totalAutoritativo);
+            }
+        } catch (errorFactura) {
+            console.error('Advertencia: Error al generar o enviar factura:', errorFactura.message);
+        }
+
+        return res.status(201).json({
+            mensaje: 'Transacción procesada correctamente',
+            id_pedido: id_pedido,
+            factura: facturaBase64
+        });
+
     } catch (error) {
+        if (connection && transaccionIniciada) {
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error('Error durante rollback:', rollbackError.message);
+            }
+        }
         console.error('Error al procesar el pedido:', error.message);
-        res.status(500).json({ mensaje: 'Error interno al procesar la transacción' });
+        return res.status(500).json({ mensaje: 'Error interno al procesar la transacción.' });
+    } finally {
+        if (connection) {
+            connection.release();
+        }
     }
 };
 
 // Obtener el historial de compras de un cliente específico
 exports.obtenerMisPedidos = async (req, res) => {
     // El ID del usuario viene del token decodificado por el authMiddleware
-    const id_usuario = req.usuario.id;
+    const id_usuario = req.usuario && (req.usuario.id || req.usuario.id_usuario);
+    if (!id_usuario) {
+        return res.status(401).json({ mensaje: 'No autorizado. Sesión no válida.' });
+    }
 
     try {
         // 1. Busca todos los pedidos generales de este usuario, ordenados del más reciente al más antiguo

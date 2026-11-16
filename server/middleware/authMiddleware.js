@@ -1,33 +1,34 @@
 // Importa la librería jsonwebtoken
 const jwt = require('jsonwebtoken');
 
-// Define y exporta la función del middleware
+// Define y exporta la función del middleware de autenticación JWT
 module.exports = function(req, res, next) {
     // Extrae el encabezado de autorización de la petición HTTP
     const authHeader = req.header('Authorization');
 
-    // Verifica si el encabezado existe
-    if (!authHeader) {
-        return res.status(401).json({ mensaje: 'Acceso denegado. No se proporcionó un token.' });
+    // Valida presencia y formato Bearer <token>
+    if (!authHeader || typeof authHeader !== 'string') {
+        return res.status(401).json({ mensaje: 'Token inválido o expirado.' });
     }
 
-    // Separa la palabra "Bearer" del token real
-    const token = authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ mensaje: 'Acceso denegado. Formato de token inválido.' });
+    const partes = authHeader.trim().split(/\s+/);
+    if (partes.length !== 2 || partes[0] !== 'Bearer' || !partes[1]) {
+        return res.status(401).json({ mensaje: 'Token inválido o expirado.' });
     }
+
+    const token = partes[1];
 
     try {
-        // Verifica la firma del token utilizando la clave secreta del archivo .env
+        // Verifica la firma del token utilizando la clave secreta
         const decodificado = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Inyecta los datos del usuario decodificado en el objeto de la petición (req)
+        // Inyecta los datos del usuario decodificado en req.usuario
         req.usuario = decodificado;
         
         // Permite que la petición continúe hacia el controlador
         next();
     } catch (error) {
-        res.status(400).json({ mensaje: 'Token inválido o expirado.' });
+        // Unificación de respuesta 401 Unauthorized ante firmas manipuladas o tokens expirados
+        return res.status(401).json({ mensaje: 'Token inválido o expirado.' });
     }
 };

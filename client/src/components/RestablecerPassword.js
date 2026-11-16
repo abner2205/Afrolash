@@ -49,10 +49,14 @@ const RestablecerPassword = ({ navegarA, id, token }) => {
     e.preventDefault();
     if (cargando) return;
 
-    if (password.length < 8) {
+    const esPasswordValida =
+      password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password);
+
+    if (!esPasswordValida) {
       setModalMensaje({
         visible: true,
-        texto: 'Por motivos de seguridad, tu nueva contraseña debe tener al menos 8 caracteres.',
+        texto:
+          'Por motivos de seguridad, tu nueva contraseña debe tener al menos 8 caracteres, una letra mayúscula y un número.',
         tipo: 'error',
         accionPosterior: null,
       });
@@ -98,7 +102,7 @@ const RestablecerPassword = ({ navegarA, id, token }) => {
         Crear nueva contraseña
       </h1>
       <p className="afro-auth-subtitle">
-        Elige una contraseña segura de al menos 8 caracteres para tu cuenta.
+        Elige una contraseña segura de al menos 8 caracteres, una mayúscula y un número para tu cuenta.
       </p>
 
       <form onSubmit={handleSubmit} className="afro-form-stack">
@@ -112,7 +116,7 @@ const RestablecerPassword = ({ navegarA, id, token }) => {
               type={mostrarPassword ? 'text' : 'password'}
               name="nuevaPassword"
               className="afro-input afro-password-input"
-              placeholder="Mínimo 8 caracteres"
+              placeholder="Mínimo 8 caracteres (mayúscula y número)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

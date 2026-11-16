@@ -230,7 +230,7 @@ describe('T4 — Autenticación, Perfil, Mis Pedidos y Documentos Legales', () =
       expect(navegarA).toHaveBeenCalledWith('login');
     });
 
-    it('RestablecerPassword habilita botón de visibilidad por teclado, valida longitud mínima y preserva endpoint', async () => {
+    it('RestablecerPassword habilita botón de visibilidad por teclado, valida longitud mínima y robustez, y preserva endpoint', async () => {
       const navegarA = jest.fn();
       axios.post.mockResolvedValueOnce({ data: { mensaje: 'Clave actualizada.' } });
 
@@ -252,14 +252,27 @@ describe('T4 — Autenticación, Perfil, Mis Pedidos y Documentos Legales', () =
         'true'
       );
 
+      // 1. Contraseña corta (< 8 caracteres)
       fireEvent.change(inputPass, { target: { value: 'corta' } });
       fireEvent.click(screen.getByRole('button', { name: /Guardar nueva contraseña/i }));
 
       const modalError = await screen.findByRole('dialog');
       expect(modalError).toHaveTextContent(/al menos 8 caracteres/i);
+      expect(axios.post).not.toHaveBeenCalled();
       fireEvent.keyDown(document, { key: 'Escape' });
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
+      // 2. Contraseña de 8+ caracteres sin mayúscula ni número
+      fireEvent.change(inputPass, { target: { value: 'solominusc' } });
+      fireEvent.click(screen.getByRole('button', { name: /Guardar nueva contraseña/i }));
+
+      const modalErrorRobusta = await screen.findByRole('dialog');
+      expect(modalErrorRobusta).toHaveTextContent(/una letra mayúscula y un número/i);
+      expect(axios.post).not.toHaveBeenCalled();
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      // 3. Contraseña válida (8+ caracteres, mayúscula y número)
       fireEvent.change(inputPass, { target: { value: 'NuevaClave2026' } });
       fireEvent.click(screen.getByRole('button', { name: /Guardar nueva contraseña/i }));
 
