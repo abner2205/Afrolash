@@ -1,4 +1,7 @@
-require('dotenv').config(); // Carga las variables de .env
+const path = require('path');
+// Carga las variables de entorno con ruta absoluta explícita al inicio del archivo
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+
 // Importación de módulos principales
 const express = require('express');
 const cors = require('cors');
@@ -20,6 +23,35 @@ const db = require('./config/db');
 const app = express();
 app.auditarVariablesEntorno = auditarVariablesEntorno;
 
+/**
+ * Parsea de forma segura y estricta la directiva trust proxy para balanceadores de carga / proxies inversos.
+ * @param {string|number|undefined|null} valor Valor de la variable TRUST_PROXY.
+ * @returns {number|boolean} 1 si es 'true', número entero si es >= 1, o false en cualquier otro caso.
+ */
+function parsearTrustProxy(valor) {
+    if (valor === undefined || valor === null) {
+        return false;
+    }
+    const str = String(valor).trim().toLowerCase();
+    if (str === '' || str === 'false' || str === '0') {
+        return false;
+    }
+    if (str === 'true') {
+        return 1;
+    }
+    if (/^\d+$/.test(str)) {
+        const num = parseInt(str, 10);
+        if (num >= 1) {
+            return num;
+        }
+    }
+    return false;
+}
+
+// Configura la confianza en proxy inverso numéricamente exacta y expone el helper para pruebas
+app.set('trust proxy', parsearTrustProxy(process.env.TRUST_PROXY));
+app.parsearTrustProxy = parsearTrustProxy;
+
 // Deshabilita la cabecera X-Powered-By para mitigar perfilamiento
 app.disable('x-powered-by');
 
@@ -27,6 +59,28 @@ app.disable('x-powered-by');
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
+
+// 1. Endpoint público de diagnóstico y salud con política CORS permisiva dedicada
+app.options('/api/health', cors());
+app.get('/api/health', cors(), async (req, res) => {
+    try {
+        await db.query('SELECT 1');
+        return res.status(200).json({
+            status: 'ok',
+            database: 'connected',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        return res.status(503).json({
+            status: 'error',
+            database: 'disconnected',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 2. Servido estático público de imágenes bajo /img (emite Cross-Origin-Resource-Policy: cross-origin vía helmet)
+app.use('/img', cors(), express.static(path.join(__dirname, '../client/public/img')));
 
 // Configuración dinámica de orígenes permitidos por CORS
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';

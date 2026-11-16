@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 const RecuperarPassword = ({ navegarA }) => {
   const [correo, setCorreo] = useState('');
@@ -48,7 +49,7 @@ const RecuperarPassword = ({ navegarA }) => {
 
     setCargando(true);
     try {
-      await axios.post('http://localhost:5000/api/auth/recuperar-password', { correo });
+      await axios.post(`${API_URL}/api/auth/recuperar-password`, { correo });
       if (montadoRef.current) {
         setModalMensaje({
           visible: true,

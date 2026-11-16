@@ -59,7 +59,7 @@ exports.procesarPedido = async (req, res) => {
 
         for (const item of productosOrdenados) {
             const [filas] = await connection.query(
-                'SELECT id_producto, nombre, precio, stock, estado FROM Productos WHERE id_producto = ? FOR UPDATE',
+                'SELECT id_producto, nombre, precio, stock, estado FROM productos WHERE id_producto = ? FOR UPDATE',
                 [item.id_producto]
             );
 
@@ -98,33 +98,33 @@ exports.procesarPedido = async (req, res) => {
 
         // Inserta el pedido maestro con el total autoritativo
         const [resultadoPedido] = await connection.query(
-            'INSERT INTO Pedidos (id_usuario, total, direccion_envio, telefono_contacto) VALUES (?, ?, ?, ?)',
+            'INSERT INTO pedidos (id_usuario, total, direccion_envio, telefono_contacto) VALUES (?, ?, ?, ?)',
             [id_usuario, totalAutoritativo, direccionLimpia, telefonoLimpio]
         );
         const id_pedido = resultadoPedido.insertId;
 
         // Actualiza Usuarios en la misma conexión
         await connection.query(
-            'UPDATE Usuarios SET direccion = ?, telefono = ? WHERE id_usuario = ?',
+            'UPDATE usuarios SET direccion = ?, telefono = ? WHERE id_usuario = ?',
             [direccionLimpia, telefonoLimpio, id_usuario]
         );
 
         // Inserta cada línea en Detalles_pedido y descuenta existencias en Productos
         for (const item of itemsAutoritativos) {
             await connection.query(
-                'INSERT INTO Detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
+                'INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)',
                 [id_pedido, item.id_producto, item.cantidad, item.precio]
             );
 
             await connection.query(
-                'UPDATE Productos SET stock = stock - ? WHERE id_producto = ?',
+                'UPDATE productos SET stock = stock - ? WHERE id_producto = ?',
                 [item.cantidad, item.id_producto]
             );
         }
 
         // Consulta el correo del usuario en Usuarios dentro de la transacción
         const [usuarioData] = await connection.query(
-            'SELECT correo FROM Usuarios WHERE id_usuario = ?',
+            'SELECT correo FROM usuarios WHERE id_usuario = ?',
             [id_usuario]
         );
         const correoCliente = usuarioData && usuarioData.length > 0 ? usuarioData[0].correo : null;
@@ -183,7 +183,7 @@ exports.obtenerMisPedidos = async (req, res) => {
     try {
         // 1. Busca todos los pedidos generales de este usuario, ordenados del más reciente al más antiguo
         const [pedidos] = await db.query(
-            'SELECT * FROM Pedidos WHERE id_usuario = ? ORDER BY id_pedido DESC', 
+            'SELECT * FROM pedidos WHERE id_usuario = ? ORDER BY id_pedido DESC', 
             [id_usuario]
         );
 
@@ -191,11 +191,11 @@ exports.obtenerMisPedidos = async (req, res) => {
         for (let i = 0; i < pedidos.length; i++) {
             const id_pedido = pedidos[i].id_pedido;
             
-            // Realiza un JOIN entre Detalles_pedido y Productos para obtener el nombre y la foto de lo que compró
+            // Realiza un JOIN entre detalles_pedido y productos para obtener el nombre y la foto de lo que compró
             const [detalles] = await db.query(`
                 SELECT dp.cantidad, dp.precio_unitario, pr.nombre, pr.imagen_url 
-                FROM Detalles_pedido dp
-                JOIN Productos pr ON dp.id_producto = pr.id_producto
+                FROM detalles_pedido dp
+                JOIN productos pr ON dp.id_producto = pr.id_producto
                 WHERE dp.id_pedido = ?
             `, [id_pedido]);
 
@@ -215,11 +215,11 @@ exports.obtenerMisPedidos = async (req, res) => {
 // Solo para Admin: Obtiene el historial global de ventas
 exports.obtenerTodosLosPedidos = async (req, res) => {
     try {
-        // 1. Consulta principal: Une la tabla Pedidos con Usuarios para obtener los datos del cliente
+        // 1. Consulta principal: Une la tabla pedidos con usuarios para obtener los datos del cliente
         const [pedidos] = await db.query(`
             SELECT p.id_pedido, p.total, p.fecha_pedido, p.estado, p.direccion_envio, p.telefono_contacto, u.nombre_completo AS cliente_nombre, u.correo AS cliente_email
-            FROM Pedidos p
-            JOIN Usuarios u ON p.id_usuario = u.id_usuario
+            FROM pedidos p
+            JOIN usuarios u ON p.id_usuario = u.id_usuario
             ORDER BY p.id_pedido DESC
         `);
 
@@ -229,8 +229,8 @@ exports.obtenerTodosLosPedidos = async (req, res) => {
             
             const [detalles] = await db.query(`
                 SELECT dp.cantidad, dp.precio_unitario, pr.nombre 
-                FROM Detalles_pedido dp
-                JOIN Productos pr ON dp.id_producto = pr.id_producto
+                FROM detalles_pedido dp
+                JOIN productos pr ON dp.id_producto = pr.id_producto
                 WHERE dp.id_pedido = ?
             `, [id_pedido]);
 
@@ -251,7 +251,7 @@ exports.actualizarEstadoPedido = async (req, res) => {
     const { estado } = req.body;
 
     try {
-        await db.query('UPDATE Pedidos SET estado = ? WHERE id_pedido = ?', [estado, id]);
+        await db.query('UPDATE pedidos SET estado = ? WHERE id_pedido = ?', [estado, id]);
         res.status(200).json({ mensaje: 'Estado logístico actualizado exitosamente' });
     } catch (error) {
         console.error('Error al actualizar el estado del pedido:', error.message);

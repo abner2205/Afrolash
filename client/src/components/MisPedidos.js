@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL, obtenerUrlImagen } from '../config/api';
 
 const ESTADOS_PEDIDO = {
   pendiente: { clase: 'afro-badge afro-badge-warning', etiqueta: 'Pendiente' },
@@ -69,7 +70,7 @@ const MisPedidos = () => {
       }
 
       try {
-        const respuesta = await axios.get('http://localhost:5000/api/pedidos/mis-pedidos', {
+        const respuesta = await axios.get(`${API_URL}/api/pedidos/mis-pedidos`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (activo) {
@@ -181,7 +182,7 @@ const MisPedidos = () => {
                           className="afro-order-item"
                         >
                           <img
-                            src={item.imagen_url}
+                            src={obtenerUrlImagen(item.imagen_url)}
                             alt={item.nombre}
                             loading="lazy"
                             className="afro-cart-thumb"

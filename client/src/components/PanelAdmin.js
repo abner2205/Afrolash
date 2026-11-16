@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 import {
   BarChart,
   Bar,
@@ -125,7 +126,7 @@ const PanelAdmin = () => {
     setErrorInventario('');
     try {
       const respuesta = await axios.get(
-        'http://localhost:5000/api/productos/admin',
+        `${API_URL}/api/productos/admin`,
         obtenerConfigHeaders()
       );
       if (montadoRef.current) {
@@ -148,7 +149,7 @@ const PanelAdmin = () => {
     setErrorVentas('');
     try {
       const respuesta = await axios.get(
-        'http://localhost:5000/api/pedidos/admin/todos',
+        `${API_URL}/api/pedidos/admin/todos`,
         obtenerConfigHeaders()
       );
       if (montadoRef.current) {
@@ -211,7 +212,7 @@ const PanelAdmin = () => {
     setActualizandoVentaId(id_pedido);
     try {
       await axios.patch(
-        `http://localhost:5000/api/pedidos/admin/${id_pedido}/estado`,
+        `${API_URL}/api/pedidos/admin/${id_pedido}/estado`,
         { estado: nuevoEstado },
         obtenerConfigHeaders()
       );
@@ -279,7 +280,7 @@ const PanelAdmin = () => {
 
       if (modoEdicion) {
         await axios.put(
-          `http://localhost:5000/api/productos/${idEdicion}`,
+          `${API_URL}/api/productos/${idEdicion}`,
           formData,
           configMultipart
         );
@@ -291,7 +292,7 @@ const PanelAdmin = () => {
           });
         }
       } else {
-        await axios.post('http://localhost:5000/api/productos', formData, configMultipart);
+        await axios.post(`${API_URL}/api/productos`, formData, configMultipart);
         if (montadoRef.current) {
           setModalMensaje({
             visible: true,
@@ -345,7 +346,7 @@ const PanelAdmin = () => {
     setCambiandoEstadoId(id);
     try {
       await axios.patch(
-        `http://localhost:5000/api/productos/${id}/estado`,
+        `${API_URL}/api/productos/${id}/estado`,
         { estado: nuevoEstado },
         obtenerConfigHeaders()
       );

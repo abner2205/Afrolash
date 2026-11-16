@@ -4,7 +4,7 @@ const { limpiarArchivosSubidos } = require('../middleware/uploadMiddleware');
 // Obtener todos los productos del catálogo
 exports.obtenerProductos = async (req, res) => {
     try {
-        const [filas] = await db.query('SELECT * FROM Productos WHERE estado = 1');
+        const [filas] = await db.query('SELECT * FROM productos WHERE estado = 1');
         res.json(filas);
     } catch (error) {
         console.error('Error al obtener productos:', error);
@@ -16,7 +16,7 @@ exports.obtenerProductos = async (req, res) => {
 exports.obtenerProductoPorId = async (req, res) => {
     const { id } = req.params;
     try {
-        const [filas] = await db.query('SELECT * FROM Productos WHERE id_producto = ? AND estado = 1', [id]);
+        const [filas] = await db.query('SELECT * FROM productos WHERE id_producto = ? AND estado = 1', [id]);
         
         if (filas.length === 0) {
             return res.status(404).json({ mensaje: 'Producto no encontrado o inactivo.' });
@@ -55,7 +55,7 @@ exports.crearProducto = async (req, res) => {
 
     try {
         const [resultado] = await db.query(
-            `INSERT INTO Productos 
+            `INSERT INTO productos 
             (nombre, descripcion, precio, stock, imagen_url, ingredientes, instrucciones_uso, imagen_instrucciones, consejos, imagen_consejos, precauciones, estado) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             [
@@ -78,7 +78,7 @@ exports.eliminarProducto = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [resultado] = await db.query('DELETE FROM Productos WHERE id_producto = ?', [id]);
+        const [resultado] = await db.query('DELETE FROM productos WHERE id_producto = ?', [id]);
 
         if (resultado.affectedRows === 0) {
             return res.status(404).json({ mensaje: 'Producto no encontrado en la base de datos' });
@@ -94,7 +94,7 @@ exports.eliminarProducto = async (req, res) => {
 // Obtiene el inventario completo (activos e inactivos) exclusivo para el panel admin
 exports.obtenerTodosLosProductos = async (req, res) => {
     try {
-        const [filas] = await db.query('SELECT * FROM Productos ORDER BY id_producto DESC');
+        const [filas] = await db.query('SELECT * FROM productos ORDER BY id_producto DESC');
         res.json(filas);
     } catch (error) {
         console.error('Error al obtener inventario:', error);
@@ -117,7 +117,7 @@ exports.actualizarProducto = async (req, res) => {
 
     try {
         const [resultado] = await db.query(
-            `UPDATE Productos 
+            `UPDATE productos 
              SET nombre = ?, descripcion = ?, precio = ?, stock = ?,
                  ingredientes = ?, instrucciones_uso = ?, consejos = ?, precauciones = ?,
                  imagen_url = COALESCE(?, imagen_url),
@@ -150,7 +150,7 @@ exports.cambiarEstadoProducto = async (req, res) => {
     const { id } = req.params;
     const { estado } = req.body;
     try {
-        await db.query('UPDATE Productos SET estado = ? WHERE id_producto = ?', [estado, id]);
+        await db.query('UPDATE productos SET estado = ? WHERE id_producto = ?', [estado, id]);
         res.status(200).json({ mensaje: 'Visibilidad del producto actualizada' });
     } catch (error) {
         console.error('Error al cambiar estado:', error.message);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { API_URL } from '../config/api';
 
 const RestablecerPassword = ({ navegarA, id, token }) => {
   const [password, setPassword] = useState('');
@@ -66,7 +67,7 @@ const RestablecerPassword = ({ navegarA, id, token }) => {
     setCargando(true);
     try {
       const respuesta = await axios.post(
-        `http://localhost:5000/api/auth/restablecer-password/${id}/${token}`,
+        `${API_URL}/api/auth/restablecer-password/${id}/${token}`,
         { nuevaPassword: password }
       );
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { API_URL } from '../../config/api';
 
 const ESTADO_INICIAL_PRODUCTO = {
   nombre: '',
@@ -65,7 +66,7 @@ const AdminInventario = ({ usuarioActual }) => {
     setErrorCarga('');
     try {
       const respuesta = await axios.get(
-        'http://localhost:5000/api/productos/admin',
+        `${API_URL}/api/productos/admin`,
         obtenerConfigHeaders()
       );
       if (montadoRef.current) {
@@ -168,7 +169,7 @@ const AdminInventario = ({ usuarioActual }) => {
 
       if (modoEdicion) {
         await axios.put(
-          `http://localhost:5000/api/productos/${idEdicion}`,
+          `${API_URL}/api/productos/${idEdicion}`,
           formData,
           configMultipart
         );
@@ -180,7 +181,7 @@ const AdminInventario = ({ usuarioActual }) => {
           });
         }
       } else {
-        await axios.post('http://localhost:5000/api/productos', formData, configMultipart);
+        await axios.post(`${API_URL}/api/productos`, formData, configMultipart);
         if (montadoRef.current) {
           setModalMensaje({
             visible: true,
@@ -233,7 +234,7 @@ const AdminInventario = ({ usuarioActual }) => {
     setCambiandoEstadoId(id);
     try {
       await axios.patch(
-        `http://localhost:5000/api/productos/${id}/estado`,
+        `${API_URL}/api/productos/${id}/estado`,
         { estado: nuevoEstado },
         obtenerConfigHeaders()
       );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL, obtenerUrlImagen } from '../config/api';
 
 const BENEFICIOS = [
   {
@@ -42,7 +43,7 @@ const Inicio = ({ navegarA }) => {
     setCargando(true);
     setErrorCarga('');
     try {
-      const respuesta = await axios.get('http://localhost:5000/api/productos');
+      const respuesta = await axios.get(`${API_URL}/api/productos`);
       if (!montadoRef.current) return;
       const lista = Array.isArray(respuesta.data) ? respuesta.data.slice(0, 5) : [];
       setProductosDestacados(lista);
@@ -189,7 +190,7 @@ const Inicio = ({ navegarA }) => {
                     aria-hidden={indiceCarrusel !== index}
                   >
                     <img
-                      src={producto.imagen_url}
+                      src={obtenerUrlImagen(producto.imagen_url)}
                       alt={producto.nombre}
                       loading="lazy"
                       className="afro-carousel-img"

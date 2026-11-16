@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL, obtenerUrlImagen } from '../config/api';
 
 const formatearPrecio = (precio) => {
   const numero = Number(precio);
@@ -33,7 +34,7 @@ const ProductoDetalle = ({ idProducto, agregarAlCarrito, navegarA }) => {
       setModalConfirmacion(false);
 
       try {
-        const respuesta = await axios.get(`http://localhost:5000/api/productos/${idProducto}`);
+        const respuesta = await axios.get(`${API_URL}/api/productos/${idProducto}`);
         if (!activo) return;
 
         if (respuesta.data && typeof respuesta.data === 'object' && !Array.isArray(respuesta.data)) {
@@ -160,7 +161,7 @@ const ProductoDetalle = ({ idProducto, agregarAlCarrito, navegarA }) => {
       <div className="afro-detail-grid">
         <div className="afro-detail-media">
           <img
-            src={producto.imagen_url}
+            src={obtenerUrlImagen(producto.imagen_url)}
             alt={producto.nombre}
             className="afro-detail-img"
           />
@@ -265,7 +266,7 @@ const ProductoDetalle = ({ idProducto, agregarAlCarrito, navegarA }) => {
               {producto.imagen_instrucciones ? (
                 <div className="afro-detail-split-media">
                   <img
-                    src={producto.imagen_instrucciones}
+                    src={obtenerUrlImagen(producto.imagen_instrucciones)}
                     alt={`Instrucciones de uso de ${producto.nombre}`}
                     loading="lazy"
                     className="afro-detail-split-img"
@@ -291,7 +292,7 @@ const ProductoDetalle = ({ idProducto, agregarAlCarrito, navegarA }) => {
               {producto.imagen_consejos ? (
                 <div className="afro-detail-split-media">
                   <img
-                    src={producto.imagen_consejos}
+                    src={obtenerUrlImagen(producto.imagen_consejos)}
                     alt={`Consejos de uso de ${producto.nombre}`}
                     loading="lazy"
                     className="afro-detail-split-img"

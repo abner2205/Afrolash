@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { API_URL, obtenerUrlImagen } from '../config/api';
 
 const PRODUCTOS_POR_PAGINA = 10;
 
@@ -36,7 +37,7 @@ const Catalogo = ({ agregarAlCarrito, navegarA, terminoBusqueda }) => {
     setCargando(true);
     setErrorCarga('');
     try {
-      const respuesta = await axios.get('http://localhost:5000/api/productos');
+      const respuesta = await axios.get(`${API_URL}/api/productos`);
       if (!montadoRef.current) return;
       setProductos(Array.isArray(respuesta.data) ? respuesta.data : []);
     } catch (error) {
@@ -238,7 +239,7 @@ const Catalogo = ({ agregarAlCarrito, navegarA, terminoBusqueda }) => {
                   >
                     <div className="afro-product-img-wrap">
                       <img
-                        src={producto.imagen_url}
+                        src={obtenerUrlImagen(producto.imagen_url)}
                         alt={producto.nombre}
                         loading="lazy"
                         className="afro-product-img"

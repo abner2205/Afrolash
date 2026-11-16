@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 const leerUsuarioSeguro = () => {
   try {
@@ -82,7 +83,7 @@ const Perfil = () => {
     try {
       const token = leerTokenSeguro();
       await axios.put(
-        'http://localhost:5000/api/auth/perfil',
+        `${API_URL}/api/auth/perfil`,
         {
           nombre_completo: formData.nombre_completo,
           direccion: formData.direccion,

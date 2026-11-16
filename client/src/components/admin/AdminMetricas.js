@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 import {
   BarChart,
   Bar,
@@ -51,7 +52,7 @@ const AdminMetricas = () => {
     setErrorCarga('');
     try {
       const token = leerTokenSeguro();
-      const respuesta = await axios.get('http://localhost:5000/api/pedidos/admin/todos', {
+      const respuesta = await axios.get(`${API_URL}/api/pedidos/admin/todos`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (montadoRef.current) {

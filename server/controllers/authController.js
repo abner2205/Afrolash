@@ -35,7 +35,7 @@ exports.registrarUsuario = async (req, res) => {
 
         // Verificación de correo duplicado antes de intentar insertar
         const [existentes] = await db.query(
-            'SELECT id_usuario FROM Usuarios WHERE correo = ?',
+            'SELECT id_usuario FROM usuarios WHERE correo = ?',
             [correoNormalizado]
         );
 
@@ -51,7 +51,7 @@ exports.registrarUsuario = async (req, res) => {
 
         // Inserta el usuario en la base de datos
         const [resultado] = await db.query(
-            'INSERT INTO Usuarios (nombre_completo, correo, password, rol) VALUES (?, ?, ?, ?)',
+            'INSERT INTO usuarios (nombre_completo, correo, password, rol) VALUES (?, ?, ?, ?)',
             [nombre_completo.trim(), correoNormalizado, hashedPassword, 'cliente']
         );
 
@@ -70,7 +70,7 @@ exports.loginUsuario = async (req, res) => {
 
     try {
         // 1. Verifica si el correo existe en la base de datos
-        const [usuarios] = await db.query('SELECT * FROM Usuarios WHERE correo = ?', [correo]);
+        const [usuarios] = await db.query('SELECT * FROM usuarios WHERE correo = ?', [correo]);
         
         if (usuarios.length === 0) {
             return res.status(401).json({ mensaje: 'Credenciales inválidas' });
@@ -119,7 +119,7 @@ exports.actualizarPerfil = async (req, res) => {
 
     try {
         await db.query(
-            'UPDATE Usuarios SET nombre_completo = ?, direccion = ?, telefono = ? WHERE id_usuario = ?',
+            'UPDATE usuarios SET nombre_completo = ?, direccion = ?, telefono = ? WHERE id_usuario = ?',
             [nombre_completo, direccion, telefono, id_usuario]
         );
 
@@ -141,7 +141,7 @@ exports.solicitarRecuperacion = async (req, res) => {
 
     try {
         const correoNormalizado = correo.trim().toLowerCase();
-        const [usuarios] = await db.query('SELECT * FROM Usuarios WHERE correo = ?', [correoNormalizado]);
+        const [usuarios] = await db.query('SELECT * FROM usuarios WHERE correo = ?', [correoNormalizado]);
         
         if (usuarios.length === 0) {
             // Respuesta genérica 200 para prevenir enumeración de correos
@@ -214,7 +214,7 @@ exports.restablecerPassword = async (req, res) => {
     }
 
     try {
-        const [usuarios] = await db.query('SELECT * FROM Usuarios WHERE id_usuario = ?', [id]);
+        const [usuarios] = await db.query('SELECT * FROM usuarios WHERE id_usuario = ?', [id]);
         
         if (usuarios.length === 0) {
             return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
@@ -236,7 +236,7 @@ exports.restablecerPassword = async (req, res) => {
 
         // Actualizar la base de datos
         await db.query(
-            'UPDATE Usuarios SET password = ? WHERE id_usuario = ?',
+            'UPDATE usuarios SET password = ? WHERE id_usuario = ?',
             [hashedPassword, id]
         );
 

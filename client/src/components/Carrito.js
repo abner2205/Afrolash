@@ -3,6 +3,7 @@ import axios from 'axios';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import FormularioPago from './FormularioPago';
+import { API_URL, obtenerUrlImagen } from '../config/api';
 
 const stripeKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
@@ -145,7 +146,7 @@ const Carrito = ({ carrito, eliminarDelCarrito, volver, navegarA, vaciarCarrito 
 
     try {
       const respuesta = await axios.post(
-        'http://localhost:5000/api/pagos/crear-intencion',
+        `${API_URL}/api/pagos/crear-intencion`,
         { total: total },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -195,7 +196,7 @@ const Carrito = ({ carrito, eliminarDelCarrito, volver, navegarA, vaciarCarrito 
 
     try {
       const respuesta = await axios.post(
-        'http://localhost:5000/api/pedidos/procesar',
+        `${API_URL}/api/pedidos/procesar`,
         {
           id_usuario: usuario.id || usuario.id_usuario,
           carrito: itemsCarrito,
@@ -320,7 +321,7 @@ const Carrito = ({ carrito, eliminarDelCarrito, volver, navegarA, vaciarCarrito 
                     <li key={item.id_producto} className="afro-cart-item">
                       <div className="afro-cart-item-info">
                         <img
-                          src={item.imagen_url}
+                          src={obtenerUrlImagen(item.imagen_url)}
                           alt={item.nombre}
                           loading="lazy"
                           className="afro-cart-thumb"

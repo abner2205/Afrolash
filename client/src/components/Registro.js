@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import DocumentosLegales from './DocumentosLegales';
+import { API_URL } from '../config/api';
 
 const Registro = ({ navegarA }) => {
   const [formData, setFormData] = useState({
@@ -99,7 +100,7 @@ const Registro = ({ navegarA }) => {
     setCargando(true);
 
     try {
-      await axios.post('http://localhost:5000/api/auth/registro', {
+      await axios.post(`${API_URL}/api/auth/registro`, {
         nombre_completo: formData.nombre_completo,
         correo: formData.correo,
         password: formData.password,

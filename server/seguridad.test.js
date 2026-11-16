@@ -56,7 +56,7 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
         const [resultado] = await db.query(
-            'INSERT INTO Usuarios (nombre_completo, correo, password, rol, direccion, telefono) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO usuarios (nombre_completo, correo, password, rol, direccion, telefono) VALUES (?, ?, ?, ?, ?, ?)',
             [nombre, correo.toLowerCase(), hash, rol, 'Calle Test 123', '04141234567']
         );
         const id = resultado.insertId;
@@ -66,7 +66,7 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
 
     async function crearProductoEnBD({ nombre, precio, stock, estado = 1 }) {
         const [resultado] = await db.query(
-            'INSERT INTO Productos (nombre, precio, stock, estado) VALUES (?, ?, ?, ?)',
+            'INSERT INTO productos (nombre, precio, stock, estado) VALUES (?, ?, ?, ?)',
             [nombre, precio, stock, estado]
         );
         const id = resultado.insertId;
@@ -111,34 +111,34 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
 
             if (idsPedidos.length > 0) {
                 const placeholders = idsPedidos.map(() => '?').join(',');
-                await db.query(`DELETE FROM Detalles_pedido WHERE id_pedido IN (${placeholders})`, idsPedidos);
+                await db.query(`DELETE FROM detalles_pedido WHERE id_pedido IN (${placeholders})`, idsPedidos);
             }
 
             if (idsProductos.length > 0) {
                 const placeholders = idsProductos.map(() => '?').join(',');
-                await db.query(`DELETE FROM Detalles_pedido WHERE id_producto IN (${placeholders})`, idsProductos);
+                await db.query(`DELETE FROM detalles_pedido WHERE id_producto IN (${placeholders})`, idsProductos);
             }
 
             if (idsPedidos.length > 0) {
                 const placeholders = idsPedidos.map(() => '?').join(',');
-                await db.query(`DELETE FROM Pedidos WHERE id_pedido IN (${placeholders})`, idsPedidos);
+                await db.query(`DELETE FROM pedidos WHERE id_pedido IN (${placeholders})`, idsPedidos);
             }
 
             if (idsUsuarios.length > 0) {
                 const placeholders = idsUsuarios.map(() => '?').join(',');
-                await db.query(`DELETE FROM Pedidos WHERE id_usuario IN (${placeholders})`, idsUsuarios);
+                await db.query(`DELETE FROM pedidos WHERE id_usuario IN (${placeholders})`, idsUsuarios);
             }
 
             if (idsProductos.length > 0) {
                 const placeholders = idsProductos.map(() => '?').join(',');
                 await db.query(`DELETE FROM auditoria WHERE tabla_afectada = 'Productos' AND registro_id IN (${placeholders})`, idsProductos);
-                await db.query(`DELETE FROM Productos WHERE id_producto IN (${placeholders})`, idsProductos);
+                await db.query(`DELETE FROM productos WHERE id_producto IN (${placeholders})`, idsProductos);
             }
 
             if (idsUsuarios.length > 0) {
                 const placeholders = idsUsuarios.map(() => '?').join(',');
                 await db.query(`DELETE FROM auditoria WHERE tabla_afectada = 'Usuarios' AND registro_id IN (${placeholders})`, idsUsuarios);
-                await db.query(`DELETE FROM Usuarios WHERE id_usuario IN (${placeholders})`, idsUsuarios);
+                await db.query(`DELETE FROM usuarios WHERE id_usuario IN (${placeholders})`, idsUsuarios);
             }
 
             // Limpieza de cualquier archivo físico residual registrado
@@ -443,7 +443,7 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
             creados.pedidos.add(idPedido);
 
             // Verificar en la BD que el pedido se registró a nombre de usuarioClienteId y NO de usuarioVictimaId
-            const [pedidos] = await db.query('SELECT id_usuario FROM Pedidos WHERE id_pedido = ?', [idPedido]);
+            const [pedidos] = await db.query('SELECT id_usuario FROM pedidos WHERE id_pedido = ?', [idPedido]);
             expect(pedidos.length).toBe(1);
             expect(pedidos[0].id_usuario).toBe(usuarioClienteId);
             expect(pedidos[0].id_usuario).not.toBe(usuarioVictimaId);
@@ -474,13 +474,13 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
             creados.pedidos.add(idPedido);
 
             // Verificar total recalculado en Pedidos
-            const [pedidos] = await db.query('SELECT total FROM Pedidos WHERE id_pedido = ?', [idPedido]);
+            const [pedidos] = await db.query('SELECT total FROM pedidos WHERE id_pedido = ?', [idPedido]);
             const totalEsperado = Number((precioOficial * cantidadComprada).toFixed(2));
             expect(Number(pedidos[0].total)).toBe(totalEsperado);
             expect(Number(pedidos[0].total)).not.toBe(0.01);
 
             // Verificar precio_unitario oficial en Detalles_pedido
-            const [detalles] = await db.query('SELECT precio_unitario, cantidad FROM Detalles_pedido WHERE id_pedido = ?', [idPedido]);
+            const [detalles] = await db.query('SELECT precio_unitario, cantidad FROM detalles_pedido WHERE id_pedido = ?', [idPedido]);
             expect(detalles.length).toBe(1);
             expect(Number(detalles[0].precio_unitario)).toBe(precioOficial);
             expect(detalles[0].cantidad).toBe(cantidadComprada);
@@ -508,11 +508,11 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
             expect(res.body.mensaje).toMatch(/Stock insuficiente/);
 
             // Verificar que el stock quedó intacto
-            const [filas] = await db.query('SELECT stock FROM Productos WHERE id_producto = ?', [prod.id_producto]);
+            const [filas] = await db.query('SELECT stock FROM productos WHERE id_producto = ?', [prod.id_producto]);
             expect(filas[0].stock).toBe(stockDisponible);
 
             // Verificar que no se insertó ninguna fila huérfana en Detalles_pedido
-            const [detalles] = await db.query('SELECT * FROM Detalles_pedido WHERE id_producto = ?', [prod.id_producto]);
+            const [detalles] = await db.query('SELECT * FROM detalles_pedido WHERE id_producto = ?', [prod.id_producto]);
             expect(detalles.length).toBe(0);
         });
 
@@ -538,7 +538,7 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
             creados.pedidos.add(res.body.id_pedido);
 
             // El producto debe tener stock = 0 y estado numérico 1 (no 'agotado', no 0)
-            const [filas] = await db.query('SELECT stock, estado FROM Productos WHERE id_producto = ?', [prod.id_producto]);
+            const [filas] = await db.query('SELECT stock, estado FROM productos WHERE id_producto = ?', [prod.id_producto]);
             expect(filas[0].stock).toBe(0);
             expect(Number(filas[0].estado)).toBe(1);
             expect(filas[0].estado).not.toBe('agotado');
@@ -577,12 +577,12 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
             if (res2.body.id_pedido) creados.pedidos.add(res2.body.id_pedido);
 
             // El inventario final debe ser 0 exacto, sin llegar jamás a valores negativos
-            const [filas] = await db.query('SELECT stock, estado FROM Productos WHERE id_producto = ?', [prodConcurrente.id_producto]);
+            const [filas] = await db.query('SELECT stock, estado FROM productos WHERE id_producto = ?', [prodConcurrente.id_producto]);
             expect(filas[0].stock).toBe(0);
             expect(Number(filas[0].estado)).toBe(1);
 
             // Exactamente un pedido asociado a este producto en Detalles_pedido
-            const [detalles] = await db.query('SELECT * FROM Detalles_pedido WHERE id_producto = ?', [prodConcurrente.id_producto]);
+            const [detalles] = await db.query('SELECT * FROM detalles_pedido WHERE id_producto = ?', [prodConcurrente.id_producto]);
             expect(detalles.length).toBe(1);
         });
     });
@@ -712,7 +712,7 @@ describe('Suite de Integración: Seguridad y Hardening Web (Spec 003)', () => {
             expect(res.status).toBe(201);
 
             // Registrar ID de empleado para limpieza en afterAll
-            const [filas] = await db.query('SELECT id_usuario FROM Usuarios WHERE correo = ?', [correoEmpleado]);
+            const [filas] = await db.query('SELECT id_usuario FROM usuarios WHERE correo = ?', [correoEmpleado]);
             if (filas.length > 0) {
                 creados.usuarios.add(filas[0].id_usuario);
             }

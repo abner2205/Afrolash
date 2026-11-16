@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 
 const ESTADO_INICIAL_EMPLEADO = {
   nombre_completo: '',
@@ -62,7 +63,7 @@ const AdminUsuarios = () => {
     setErrorCarga('');
     try {
       const respuesta = await axios.get(
-        'http://localhost:5000/api/usuarios/admin/todos',
+        `${API_URL}/api/usuarios/admin/todos`,
         obtenerConfigHeaders()
       );
       if (montadoRef.current) {
@@ -120,7 +121,7 @@ const AdminUsuarios = () => {
     setEnviando(true);
     try {
       await axios.post(
-        'http://localhost:5000/api/usuarios/admin/empleado',
+        `${API_URL}/api/usuarios/admin/empleado`,
         formData,
         obtenerConfigHeaders()
       );
@@ -156,7 +157,7 @@ const AdminUsuarios = () => {
     setProcesandoRevocacion(true);
     try {
       await axios.delete(
-        `http://localhost:5000/api/usuarios/admin/empleado/${confirmacionEliminar.id}`,
+        `${API_URL}/api/usuarios/admin/empleado/${confirmacionEliminar.id}`,
         obtenerConfigHeaders()
       );
       if (montadoRef.current) {

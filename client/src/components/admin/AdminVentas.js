@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import axios from 'axios';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { API_URL } from '../../config/api';
 
 const VENTAS_POR_PAGINA = 10;
 
@@ -76,7 +77,7 @@ const AdminVentas = () => {
     setErrorCarga('');
     try {
       const respuesta = await axios.get(
-        'http://localhost:5000/api/pedidos/admin/todos',
+        `${API_URL}/api/pedidos/admin/todos`,
         obtenerConfigHeaders()
       );
       if (montadoRef.current) {
@@ -118,7 +119,7 @@ const AdminVentas = () => {
     setActualizandoId(id_pedido);
     try {
       await axios.patch(
-        `http://localhost:5000/api/pedidos/admin/${id_pedido}/estado`,
+        `${API_URL}/api/pedidos/admin/${id_pedido}/estado`,
         { estado: nuevoEstado },
         obtenerConfigHeaders()
       );
