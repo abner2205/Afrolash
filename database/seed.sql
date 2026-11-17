@@ -22,7 +22,7 @@ INSERT INTO usuarios (nombre_completo, correo, password, rol, telefono, direccio
 SELECT
     'Administrador Afrolash',
     'admin@afrolash.com',
-    '$2b$10$3/kWE.pJ0j8xKMfwwE0mxetV8BqKwN7wbuOOhFqeL1e.Zii0XbkbW',
+    '$2b$10$5waVBR9Oc/iuewxfwlBxM.g7BtHGKgqQBT48IbPD6iFccwPqJTJ02',
     'admin',
     '04141234567',
     'Sede Central Afrolash, Caracas, Venezuela'
@@ -33,7 +33,7 @@ INSERT INTO usuarios (nombre_completo, correo, password, rol, telefono, direccio
 SELECT
     'Empleado Operaciones',
     'empleado@afrolash.com',
-    '$2b$10$F/FfNB9gwIiXoaSAWIrTs.JpG4iHaAHBxE.H3ggzlfTu/qRFrxRp2',
+    '$2b$10$35yfhnuoG.cBd9tnr7/T.uTb8LHazMTSqmaL6Ultc2jMYe3QxPPiS',
     'empleado',
     '04129876543',
     'Centro Logístico Afrolash, Caracas, Venezuela'
@@ -44,7 +44,7 @@ INSERT INTO usuarios (nombre_completo, correo, password, rol, telefono, direccio
 SELECT
     'Cliente Demostración',
     'cliente@afrolash.com',
-    '$2b$10$x.2T0F.opLj8MOG7nmMsC.KgVMA/d4K44ZtKJXyLINBbR4amzzRli',
+    '$2b$10$dWQZJKUzGvRa9iM4Bf3m3OnZRZ4eqdXJTebBHEvhsw91.O9UxKITC',
     'cliente',
     '04245551234',
     'Av. Francisco de Miranda, Edif. Parque Cristal, Caracas, Venezuela'
